@@ -9,12 +9,11 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Slider } from "@/components/ui/slider"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
-import { Save, RotateCcw, Sparkles, Database, Settings2, FileText, Key, Cloud, Loader2, Info } from "lucide-react"
+import { Save, RotateCcw, Sparkles, Database, Settings2, FileText, Key, Cloud, Loader2, Info, MessageSquare, Code2 } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { Separator } from "@/components/ui/separator"
 
-// Varsayılan Ayarlar
 const DEFAULT_CONFIG = {
   modelName: "gemini-2.5-flash-preview-09-2025",
   systemInstruction: "",
@@ -53,7 +52,6 @@ export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle')
 
-  // --- 1. BAŞLANGIÇ: LocalStorage'dan Anahtarları Al ve DB'ye Bağlan ---
   useEffect(() => {
     const init = async () => {
       const savedApiKeys = localStorage.getItem("api-keys")
@@ -64,7 +62,6 @@ export default function AdminPage() {
             supabaseUrl: keys.supabaseUrl || "",
             supabaseAnonKey: keys.supabaseAnonKey || "",
         }))
-        
         if (keys.supabaseUrl && keys.supabaseAnonKey) {
           await fetchLatestConfig(keys.supabaseUrl, keys.supabaseAnonKey)
         } else {
@@ -77,7 +74,6 @@ export default function AdminPage() {
     init()
   }, [])
 
-  // --- SUPABASE'DEN VERİ ÇEKME ---
   const fetchLatestConfig = async (url: string, key: string) => {
     setIsLoading(true)
     try {
@@ -116,7 +112,6 @@ export default function AdminPage() {
     }
   }
 
-  // --- BAĞLANTIYI KAYDET (Sadece LocalStorage) ---
   const handleSaveConnection = async () => {
     if (!apiKeys.supabaseUrl || !apiKeys.supabaseAnonKey) {
       toast.error("Supabase URL ve Key zorunludur")
@@ -133,7 +128,6 @@ export default function AdminPage() {
     }
   }
 
-  // --- AYARLARI SUPABASE'E KAYDET ---
   const handleSaveConfig = async () => {
     if (connectionStatus !== 'success') {
       toast.error("Önce Supabase bağlantısını kurun.")
@@ -225,7 +219,6 @@ export default function AdminPage() {
               <TabsTrigger value="rag" className="rounded-lg gap-2"><Database className="size-4" /> RAG</TabsTrigger>
             </TabsList>
 
-            {/* --- TAB 1: BAĞLANTI --- */}
             <TabsContent value="connection" className="mt-6 space-y-6">
               <Card>
                 <CardHeader>
@@ -235,42 +228,21 @@ export default function AdminPage() {
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Label>Supabase URL</Label>
-                        <Input 
-                            value={apiKeys.supabaseUrl} 
-                            onChange={e => setApiKeys({...apiKeys, supabaseUrl: e.target.value})}
-                            placeholder="https://your-project.supabase.co"
-                        />
+                        <Input value={apiKeys.supabaseUrl} onChange={e => setApiKeys({...apiKeys, supabaseUrl: e.target.value})} placeholder="https://your-project.supabase.co" />
                     </div>
                     <div className="space-y-2">
                         <Label>Supabase Anon Key</Label>
-                        <Input 
-                            type="password"
-                            value={apiKeys.supabaseAnonKey} 
-                            onChange={e => setApiKeys({...apiKeys, supabaseAnonKey: e.target.value})}
-                            placeholder="public-anon-key"
-                        />
+                        <Input type="password" value={apiKeys.supabaseAnonKey} onChange={e => setApiKeys({...apiKeys, supabaseAnonKey: e.target.value})} placeholder="public-anon-key" />
                     </div>
                     <div className="p-4 bg-muted/30 border rounded-lg space-y-2">
-                        <Label className="flex items-center gap-2">
-                            <Key className="size-4 text-primary" /> 
-                            Internal API Key (Veritabanında Saklanır)
-                        </Label>
-                        <Input 
-                            type="password"
-                            value={apiKeys.internalApiKey} 
-                            onChange={e => setApiKeys({...apiKeys, internalApiKey: e.target.value})}
-                            placeholder="Chatbot API'sini korumak için şifre"
-                        />
-                        <p className="text-xs text-muted-foreground">Bu şifre, veritabanına kaydedilir ve chatbot API'nizi korur.</p>
+                        <Label className="flex items-center gap-2"><Key className="size-4 text-primary" /> Internal API Key (Veritabanında Saklanır)</Label>
+                        <Input type="password" value={apiKeys.internalApiKey} onChange={e => setApiKeys({...apiKeys, internalApiKey: e.target.value})} placeholder="Chatbot API'sini korumak için şifre" />
                     </div>
-                    <Button onClick={handleSaveConnection} variant="secondary" className="w-full">
-                        Bağlantıyı Güncelle
-                    </Button>
+                    <Button onClick={handleSaveConnection} variant="secondary" className="w-full">Bağlantıyı Güncelle</Button>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            {/* --- TAB 2: MODEL --- */}
             <TabsContent value="model" className="mt-6">
               <Card>
                 <CardHeader><CardTitle>Model Ayarları</CardTitle></CardHeader>
@@ -297,22 +269,15 @@ export default function AdminPage() {
               </Card>
             </TabsContent>
 
-            {/* --- TAB 3: PROMPT --- */}
             <TabsContent value="prompt" className="mt-6">
               <Card>
                 <CardHeader><CardTitle>Sistem Talimatı</CardTitle></CardHeader>
                 <CardContent>
-                  <Textarea 
-                    value={config.systemInstruction}
-                    onChange={e => setConfig({...config, systemInstruction: e.target.value})}
-                    className="min-h-[500px] font-mono text-sm"
-                    placeholder="Botun kimliği..."
-                  />
+                  <Textarea value={config.systemInstruction} onChange={e => setConfig({...config, systemInstruction: e.target.value})} className="min-h-[500px] font-mono text-sm" placeholder="Botun kimliği..." />
                 </CardContent>
               </Card>
             </TabsContent>
 
-            {/* --- TAB 4: RAG --- */}
             <TabsContent value="rag" className="mt-6">
               <Card>
                 <CardHeader><CardTitle>RAG Ayarları</CardTitle></CardHeader>
@@ -330,26 +295,64 @@ export default function AdminPage() {
             </TabsContent>
         </Tabs>
 
-        {/* --- EKLENEN BİLGİ KARTI --- */}
+        {/* --- GÜNCELLENEN BİLGİ KARTI --- */}
         <Card className="bg-primary/5 border-primary/20">
-            <CardContent className="pt-6 flex gap-4">
-                <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <Info className="size-5 text-primary" />
+            <CardContent className="pt-6">
+                <div className="flex items-center gap-2 mb-6">
+                    <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Info className="size-4 text-primary" />
+                    </div>
+                    <h3 className="font-semibold text-lg text-foreground">API Entegrasyon Rehberi</h3>
                 </div>
-                <div className="space-y-2">
-                    <h4 className="font-semibold text-foreground">API Kullanım Bilgisi</h4>
-                    <p className="text-sm text-muted-foreground">
-                        Bu sayfada yaptığınız ayarlar Supabase veritabanında saklanır. Chatbot uygulamanızdan bu ayarlara erişmek için aşağıdaki endpoint'i kullanın:
-                    </p>
-                    <div className="flex flex-col gap-2 mt-2">
-                        <div className="flex items-center gap-2 text-xs font-mono bg-background border p-2 rounded">
-                            <span className="text-blue-500">GET</span>
-                            <span>/api/config</span>
+
+                <div className="grid md:grid-cols-2 gap-8">
+                    {/* BÖLÜM 1: AYARLARI ÇEKME */}
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2 text-foreground/80 font-medium">
+                            <Settings2 className="size-4" />
+                            <span>1. Konfigürasyonu Çekme</span>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                            Chatbot uygulamanızda <code className="bg-muted px-1 rounded">GET</code> isteği atarak en son 
-                            konfigürasyonu ve <code className="bg-muted px-1 rounded">internal_api_key</code> değerini çekebilirsiniz.
-                        </p>
+                        <div className="bg-background border rounded-lg p-3 space-y-2 shadow-sm">
+                            <div className="flex items-center gap-2 text-xs font-mono border-b pb-2 mb-2">
+                                <span className="text-blue-500 font-bold">GET</span>
+                                <span className="text-muted-foreground">/api/config</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                Chatbot başlatılırken en son sistem talimatlarını ve model ayarlarını almak için kullanılır.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* BÖLÜM 2: SOHBET (CHAT) */}
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2 text-foreground/80 font-medium">
+                            <MessageSquare className="size-4" />
+                            <span>2. Sohbet Başlatma (Chat)</span>
+                        </div>
+                        <div className="bg-background border rounded-lg p-3 space-y-3 shadow-sm">
+                            <div className="flex items-center gap-2 text-xs font-mono border-b pb-2 mb-2">
+                                <span className="text-green-500 font-bold">POST</span>
+                                <span className="text-muted-foreground">/api/vertex</span>
+                            </div>
+                            
+                            <div className="space-y-1">
+                                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Headers</p>
+                                <code className="block bg-muted/50 p-1.5 rounded text-[10px] font-mono text-foreground">
+                                    x-api-key: {apiKeys.internalApiKey || "YOUR_INTERNAL_KEY"}
+                                </code>
+                            </div>
+
+                            <div className="space-y-1">
+                                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Body (JSON)</p>
+                                <pre className="bg-muted/50 p-2 rounded text-[10px] font-mono text-foreground overflow-x-auto">
+{`{
+  "messages": [
+    { "role": "user", "content": "Merhaba" }
+  ]
+}`}
+                                </pre>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </CardContent>
