@@ -1,44 +1,27 @@
-# Stage 1: Dependencies
-FROM node:20-alpine AS deps
+# Use the official Node.js 18.18.0 image as a base
+FROM node:18.18.0-slim
+
+# Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package.json package-lock.json* ./
+# Display Node.js and npm versions to verify before starting
+RUN node -v && npm -v
 
-# Install dependencies
-RUN npm ci
+# Copy package files first for better layer caching
+COPY package*.json ./
+# Install ALL dependencies needed for build (consider `npm ci` if you have package-lock.json)
+RUN npm install --legacy-peer-deps
 
-# Stage 2: Builder
-FROM node:20-alpine AS builder
-WORKDIR /app
-
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
+# Copy the rest of the application code
 COPY . .
 
-# Build the Next.js app
-RUN npm run build
+# Build the application (creates the ./dist folder)
+RUN npm run build # This runs `vite build`
 
-# Stage 3: Runner
-FROM node:20-alpine AS runner
-WORKDIR /app
-
-ENV NODE_ENV=production
-
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
-# Copy necessary files
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-USER nextjs
-
+# Expose port 3000 (We will tell `serve` to use this port)
 EXPOSE 3000
 
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-
-CMD ["node", "server.js"]
+# Start serving the static files from the 'dist' directory on port 3000
+# -s indicates single-page app mode (routes requests to index.html)
+# -l 3000 listens on port 3000
+CMD ["npx", "serve", "-s", "dist", "-l", "3000"]
