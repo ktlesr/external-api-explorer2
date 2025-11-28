@@ -236,6 +236,14 @@ export default function AdminPage() {
                             step={0.05}
                             className="py-4"
                         />
+                       </div>
+                  </div>
+                   <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <Label>Similarity Top K </Label>
+                            <span className="px-2 py-0.5 rounded-md bg-muted font-mono text-xs border">{config.similarityTopK.toFixed(2)}</span>
+                        </div>
+                       
                         {/* 👇 DEĞİŞİKLİK BURADA: max={50} yerine max={100} yapıldı */}
                     <Slider 
                         value={[config.similarityTopK]} 
@@ -246,7 +254,6 @@ export default function AdminPage() {
                     />
                       </div>
                   </div>
-
                   <div className="space-y-2">
                     <Label>Max Output Tokens</Label>
                     <Input type="number" value={config.maxOutputTokens} onChange={e => setConfig({...config, maxOutputTokens: parseInt(e.target.value) || 8192})} />
