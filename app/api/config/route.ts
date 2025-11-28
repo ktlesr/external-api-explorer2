@@ -1,42 +1,85 @@
 import { NextResponse } from "next/server"
+import { createClient } from "@supabase/supabase-js"
 
-// Konfigürasyonu kaydetme endpoint'i
-export async function POST(req: Request) {
+// Sunucu tarafı client oluşturucu (Env'den okur)
+const getSupabaseAdmin = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Supabase env değişkenleri eksik!")
+  }
+  return createClient(supabaseUrl, supabaseKey)
+}
+
+// GET: Ayarları Çek
+export async function GET() {
   try {
-    const config = await req.json()
+    const supabase = getSupabaseAdmin()
+    
+    // En son eklenen kaydı çek
+    const { data, error } = await supabase
+      .from('vertex_configs')
+      .select('*')
+      .order('id', { ascending: false })
+      .limit(1)
+      .single()
 
-    // Burada config'i veritabanına kaydedebilirsin
-    // Şimdilik sadece başarılı yanıt döndürüyoruz
+    if (error && error.code !== 'PGRST116') throw error
 
-    return NextResponse.json({ success: true, config })
+    // Veri yoksa varsayılan dön
+    if (!data) {
+        return NextResponse.json(null) // Frontend varsayılanı kullanır
+    }
+
+    // Veritabanı formatını (snake_case) Frontend formatına (camelCase) çevir
+    const config = {
+      modelName: data.model_name,
+      systemInstruction: data.system_instruction,
+      ragCorpus: data.rag_corpus,
+      similarityTopK: data.similarity_top_k,
+      temperature: data.temperature,
+      topP: data.top_p,
+      maxOutputTokens: data.max_output_tokens,
+    }
+
+    return NextResponse.json(config)
+
   } catch (error: any) {
+    console.error("Config GET hatası:", error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 
-// Konfigürasyonu okuma endpoint'i
-export async function GET() {
+// POST: Ayarları Kaydet
+export async function POST(req: Request) {
   try {
-    // Burada config'i veritabanından okuyabilirsin
-    // Şimdilik default config döndürüyoruz
+    const body = await req.json()
+    const supabase = getSupabaseAdmin()
 
-    const defaultConfig = {
-      modelName: "gemini-2.5-flash-preview-09-2025",
-      systemInstruction: `GÖREVİN: Türkiye Yatırım Teşvik Sistemi uzmanı olarak, SADECE YÜKLENEN BELGELERİ kullanarak soruları yanıtlamak.
-
-KURALLAR:
-1. SADECE BELGE ODAKLI OL: Cevabı belgelerde bulamazsan uydurma.
-2. LİSTELEME: "Hangi illerde?" sorusuna tüm illeri listele.
-3. FORMAT: Cevabın sonuna "Bilgiler dokümanlardan derlenmiştir." notunu ekle.`,
-      ragCorpus: "projects/394408754498/locations/europe-west1/ragCorpora/6917529027641081856",
-      similarityTopK: 10,
-      temperature: 0.1,
-      topP: 0.95,
-      maxOutputTokens: 65535,
+    // Veritabanına INSERT et
+    const dbPayload = {
+      model_name: body.modelName,
+      system_instruction: body.systemInstruction,
+      rag_corpus: body.ragCorpus,
+      similarity_top_k: body.similarityTopK,
+      temperature: body.temperature,
+      top_p: body.topP,
+      max_output_tokens: body.maxOutputTokens,
+      internal_api_key: process.env.INTERNAL_API_KEY, // Env'den alıp kaydediyoruz
+      updated_at: new Date().toISOString()
     }
 
-    return NextResponse.json(defaultConfig)
+    const { error } = await supabase
+      .from('vertex_configs')
+      .insert([dbPayload])
+
+    if (error) throw error
+
+    return NextResponse.json({ success: true })
+
   } catch (error: any) {
+    console.error("Config POST hatası:", error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
