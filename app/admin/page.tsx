@@ -219,7 +219,7 @@ export default function AdminPage() {
                             value={[config.temperature]} // Dizi olarak veriyoruz
                             onValueChange={([v]) => setConfig({...config, temperature: v})} // Dizi olarak alıyoruz
                             max={2} 
-                            step={0.1}
+                            step={0.05}
                             className="py-4"
                         />
                       </div>
