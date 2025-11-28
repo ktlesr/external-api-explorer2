@@ -78,7 +78,7 @@ Asla referanssız bilgi verme.
         retrieval: {
           vertexRagStore: {
             ragResources: [{
-              ragResource: { ragCorpus: config.rag_corpus }
+              ragCorpus: config.rag_corpus
             }],
             similarityTopK: 50,
             vectorDistanceThreshold: 0.5, 
