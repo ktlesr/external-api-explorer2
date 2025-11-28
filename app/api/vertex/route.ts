@@ -89,7 +89,7 @@ export async function POST(req: Request) {
             ragResources: [{
               ragCorpus: config.rag_corpus 
             }],
-            similarityTopK: config.similarity_top_k || 10,
+            similarityTopK: config.similarity_top_k || 30,
           }
         }
       }] : undefined,
