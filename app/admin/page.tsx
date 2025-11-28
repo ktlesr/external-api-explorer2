@@ -17,7 +17,7 @@ const DEFAULT_CONFIG = {
   modelName: "gemini-2.5-flash",
   systemInstruction: "",
   ragCorpus: "",
-  similarityTopK: 30,
+  similarityTopK: 50,
   temperature: 0.1,
   topP: 0.95,
   maxOutputTokens: 65535,
@@ -89,7 +89,7 @@ export default function AdminPage() {
           modelName: data.model_name || DEFAULT_CONFIG.modelName,
           systemInstruction: data.system_instruction || "",
           ragCorpus: data.rag_corpus || "",
-          similarityTopK: data.similarity_top_k || 30,
+          similarityTopK: data.similarity_top_k || 50,
           temperature: data.temperature ?? 0.1, // Null check
           topP: data.top_p ?? 0.95, // Null check
           maxOutputTokens: data.max_output_tokens || 65535,
@@ -236,6 +236,14 @@ export default function AdminPage() {
                             step={0.05}
                             className="py-4"
                         />
+                        {/* 👇 DEĞİŞİKLİK BURADA: max={50} yerine max={100} yapıldı */}
+                    <Slider 
+                        value={[config.similarityTopK]} 
+                        onValueChange={([v]) => setConfig({...config, similarityTopK: v})} 
+                        min={1} 
+                        max={100} // <--- BURAYI 100 YAP
+                        step={1} 
+                    />
                       </div>
                   </div>
 
