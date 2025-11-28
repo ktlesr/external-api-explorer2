@@ -1,31 +1,14 @@
 import { GoogleGenAI } from "@google/genai";
 import { NextResponse } from "next/server";
 
-// --- AYARLAR ---
-// API Key kontrolü
-if (!process.env.GOOGLE_CLOUD_API_KEY) {
-  throw new Error("GOOGLE_CLOUD_API_KEY eksik!");
-}
-
+// 1. apiKey varsa al, yoksa boş string ver (Build sırasında patlamaması için)
 const apiKey = process.env.GOOGLE_CLOUD_API_KEY || "";
 
 const ai = new GoogleGenAI({
   apiKey: apiKey,
 });
 
-// ... (CORS Kısmı aynı kalır) ...
-
-// --- POST (Chat) ---
-export async function POST(req: Request) {
-  // 2. KONTROL BURADA YAPILMALI (Sadece istek geldiğinde)
-  if (!process.env.GOOGLE_CLOUD_API_KEY) {
-    return NextResponse.json(
-      { error: "Sunucu hatası: GOOGLE_CLOUD_API_KEY tanımlanmamış." }, 
-      { status: 500 }
-    );
-  }
-
-// --- CORS (Preflight) ---
+// --- CORS (Preflight - Tarayıcı Kontrolü) ---
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
@@ -37,29 +20,34 @@ export async function OPTIONS() {
   });
 }
 
-// --- POST (Chat) ---
+// --- POST (Chat İsteği) ---
 export async function POST(req: Request) {
+  // CORS Başlıkları
   const headers = {
     "Access-Control-Allow-Origin": "*",
     "Content-Type": "text/plain; charset=utf-8",
   };
 
+  // 2. KONTROL BURADA YAPILMALI (Sadece istek geldiğinde)
+  if (!process.env.GOOGLE_CLOUD_API_KEY) {
+    return NextResponse.json(
+      { error: "Sunucu hatası: GOOGLE_CLOUD_API_KEY tanımlanmamış." }, 
+      { status: 500, headers }
+    );
+  }
+
   try {
     const body = await req.json();
-    const { messages, config } = body; // Config'i opsiyonel olarak frontend'den de alabiliriz
+    const { messages } = body; 
 
     // 1. Son kullanıcı mesajını al
     const lastMessage = messages[messages.length - 1].content;
 
-    // 2. Vertex AI Ayarları (Varsayılanlar veya Gelenler)
-    // Not: Config endpoint'inden çektiğin ayarları buraya manuel de gömebilirsin
-    // ama en garantisi burada sabit tanımlamaktır.
+    // 2. Vertex AI Ayarları
     const modelName = 'gemini-2.5-flash-preview-09-2025';
-    
     const ragCorpus = 'projects/394408754498/locations/europe-west1/ragCorpora/6917529027641081856';
     
     // 3. Modeli Çağır (YENİ SÜRÜM SDK KULLANIMI)
-    // DİKKAT: getGenerativeModel yerine models.generateContentStream kullanıyoruz
     const result = await ai.models.generateContentStream({
       model: modelName,
       contents: [{ role: 'user', parts: [{ text: lastMessage }] }],
@@ -106,8 +94,7 @@ BELGE KULLANIM KURALLARI:
         const encoder = new TextEncoder();
         try {
           for await (const chunk of result.stream) {
-            // Yeni SDK'da metin chunk.text() fonksiyonu ile değil, 
-            // chunk.text veya chunk.candidates[0].content.parts[0].text ile gelir.
+            // Yeni SDK'da metin chunk.text() ile gelir
             const text = chunk.text(); 
             if (text) {
               controller.enqueue(encoder.encode(text));
