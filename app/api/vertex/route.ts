@@ -24,8 +24,8 @@ export async function POST(req: Request) {
   try {
     // 1. Gelen isteği ve Supabase bağlantı bilgilerini al (Env'den)
     // Not: Supabase keyleri build time'da değil runtime'da okunur, sorun olmaz.
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_ANON_KEY;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
         throw new Error("Supabase ortam değişkenleri eksik!");
