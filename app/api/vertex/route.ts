@@ -81,7 +81,7 @@ Asla referanssız bilgi verme.
               ragCorpus: config.rag_corpus
             }],
             similarityTopK: 50,
-            vectorDistanceThreshold: 0.5, 
+            vectorDistanceThreshold: 0.3, 
           }
         }
       }],
