@@ -74,9 +74,9 @@ export async function POST(req: Request) {
     const lastMessage = messages[messages.length - 1].content;
 
     const generativeModel = vertex_ai.preview.getGenerativeModel({
-      model: config.model_name || "gemini-1.5-flash-001",
+      model: config.model_name || "gemini-2.5-pro",
       generationConfig: {
-        maxOutputTokens: config.max_output_tokens || 8192,
+        maxOutputTokens: config.max_output_tokens || 65535,
         temperature: config.temperature ?? 0.1,
         topP: config.top_p ?? 0.95,
       },
