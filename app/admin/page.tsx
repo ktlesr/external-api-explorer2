@@ -237,7 +237,7 @@ export default function AdminPage() {
                             className="py-4"
                         />
                        </div>
-                  </div>
+                  
                    <div className="space-y-4">
                         <div className="flex items-center justify-between">
                             <Label>Similarity Top K </Label>
