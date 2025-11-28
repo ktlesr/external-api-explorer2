@@ -81,7 +81,7 @@ export async function POST(req: Request) {
         topP: config.top_p ?? 0.95,
       },
       systemInstruction: {
-        parts: [{ text: config.system_instruction || "Sen yardımcı bir asistansın." }]
+        parts: [{ text: config.system_instruction || "GÖREVİN: Türkiye Yatırım Teşvik Sistemi uzmanı olarak, SADECE YÜKLENEN BELGELERİ kullanarak soruları yanıtlamak." }]
       },
       tools: config.rag_corpus ? [{
         retrieval: {
@@ -89,7 +89,8 @@ export async function POST(req: Request) {
             ragResources: [{
               ragCorpus: config.rag_corpus 
             }],
-            similarityTopK: config.similarity_top_k || 30,
+            similarityTopK: config.similarity_top_k || 50,
+            vectorDistanceThreshold: 0.5,
           }
         }
       }] : undefined,
