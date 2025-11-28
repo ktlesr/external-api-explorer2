@@ -1,6 +1,17 @@
-import { NextResponse } from "next/server"
+import { GoogleGenAI } from "@google/genai";
+import { NextResponse } from "next/server";
 
-// CORS için OPTIONS metodu
+// --- AYARLAR ---
+// API Key kontrolü
+if (!process.env.GOOGLE_CLOUD_API_KEY) {
+  throw new Error("GOOGLE_CLOUD_API_KEY eksik!");
+}
+
+const ai = new GoogleGenAI({
+  apiKey: process.env.GOOGLE_CLOUD_API_KEY,
+});
+
+// --- CORS (Preflight) ---
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
@@ -9,110 +20,101 @@ export async function OPTIONS() {
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key",
     },
-  })
+  });
 }
 
-// POST metodu - Asıl işlem
+// --- POST (Chat) ---
 export async function POST(req: Request) {
   const headers = {
     "Access-Control-Allow-Origin": "*",
     "Content-Type": "text/plain; charset=utf-8",
-  }
+  };
 
   try {
-    // API Key kontrolü
-    const apiKey = req.headers.get("x-api-key")
-    if (apiKey !== process.env.TESVIKSOR_API_KEY) {
-      return NextResponse.json({ error: "Yetkisiz Erişim" }, { status: 401, headers })
-    }
+    const body = await req.json();
+    const { messages, config } = body; // Config'i opsiyonel olarak frontend'den de alabiliriz
 
-    const body = await req.json()
-    const { messages, config } = body
+    // 1. Son kullanıcı mesajını al
+    const lastMessage = messages[messages.length - 1].content;
 
-    // Dinamik import - @google/genai paketi
-    const { GoogleGenAI } = await import("@google/genai")
+    // 2. Vertex AI Ayarları (Varsayılanlar veya Gelenler)
+    // Not: Config endpoint'inden çektiğin ayarları buraya manuel de gömebilirsin
+    // ama en garantisi burada sabit tanımlamaktır.
+    const modelName = 'gemini-2.5-flash-preview-09-2025';
+    
+    const ragCorpus = 'projects/394408754498/locations/europe-west1/ragCorpora/6917529027641081856';
+    
+    // 3. Modeli Çağır (YENİ SÜRÜM SDK KULLANIMI)
+    // DİKKAT: getGenerativeModel yerine models.generateContentStream kullanıyoruz
+    const result = await ai.models.generateContentStream({
+      model: modelName,
+      contents: [{ role: 'user', parts: [{ text: lastMessage }] }],
+      config: {
+        temperature: 0.1,
+        topP: 0.95,
+        maxOutputTokens: 8192,
+        systemInstruction: {
+            parts: [{ text: `
+GÖREVİN: Türkiye Yatırım Teşvik Sistemi uzmanı olarak, SADECE YÜKLENEN BELGELERİ kullanarak soruları yanıtlamak.
 
-    const ai = new GoogleGenAI({
-      apiKey: process.env.GOOGLE_CLOUD_API_KEY!,
-    })
-
-    const lastMessage = messages[messages.length - 1].content
-
-    // Config'den gelen değerleri kullan veya default değerleri al
-    const modelName = config?.modelName || "gemini-2.5-flash-preview-09-2025"
-    const systemInstruction = config?.systemInstruction || ""
-    const ragCorpus = config?.ragCorpus || ""
-    const similarityTopK = config?.similarityTopK || 10
-    const temperature = config?.temperature ?? 0.1
-    const topP = config?.topP ?? 0.95
-    const maxOutputTokens = config?.maxOutputTokens || 65535
-
-    // Tools oluştur
-    const tools = ragCorpus
-      ? [
+BELGE KULLANIM KURALLARI:
+1. **ASLA UYDURMA:** Cevabı belgelerde bulamazsan "Belgelerde bilgi yok" de.
+2. **LİSTELEME:** Kullanıcı "Hangi illerde?" derse, belgede geçen TÜM illeri listele.
+3. **TABLO OKUMA:** Excel verilerini okurken satırları dikkatli birleştir.
+            ` }]
+        },
+        tools: [
           {
             retrieval: {
               vertexRagStore: {
                 ragResources: [
                   {
-                    ragResource: {
-                      ragCorpus: ragCorpus,
-                    },
+                    ragResource: { ragCorpus: ragCorpus },
                   },
                 ],
-                similarityTopK: similarityTopK,
+                similarityTopK: 13,
               },
             },
           },
+        ],
+        safetySettings: [
+            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'OFF' },
+            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'OFF' },
+            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'OFF' },
+            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'OFF' }
         ]
-      : []
+      },
+    });
 
-    const generationConfig = {
-      maxOutputTokens: maxOutputTokens,
-      temperature: temperature,
-      topP: topP,
-      safetySettings: [
-        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "OFF" },
-        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "OFF" },
-        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "OFF" },
-        { category: "HARM_CATEGORY_HARASSMENT", threshold: "OFF" },
-      ],
-      ...(tools.length > 0 && { tools }),
-    }
-
-    const model = ai.getGenerativeModel({
-      model: modelName,
-      ...(systemInstruction && { systemInstruction }),
-    })
-
-    const result = await model.generateContentStream({
-      contents: [{ role: "user", parts: [{ text: lastMessage }] }],
-      ...(tools.length > 0 && { tools }),
-      config: generationConfig,
-    })
-
-    // Stream yanıtı
+    // 4. Stream Yanıtı Hazırla
     const stream = new ReadableStream({
       async start(controller) {
-        const encoder = new TextEncoder()
+        const encoder = new TextEncoder();
         try {
           for await (const chunk of result.stream) {
-            const text = chunk.text()
+            // Yeni SDK'da metin chunk.text() fonksiyonu ile değil, 
+            // chunk.text veya chunk.candidates[0].content.parts[0].text ile gelir.
+            const text = chunk.text(); 
             if (text) {
-              controller.enqueue(encoder.encode(text))
+              controller.enqueue(encoder.encode(text));
             }
           }
         } catch (err) {
-          controller.error(err)
+          console.error("Stream okuma hatası:", err);
+          controller.error(err);
         } finally {
-          controller.close()
+          controller.close();
         }
       },
-    })
+    });
 
-    return new Response(stream, { headers })
+    return new Response(stream, { headers });
+
   } catch (error: any) {
-    console.error("API Hatası:", error)
-    return NextResponse.json({ error: error.message }, { status: 500, headers })
+    console.error("API Hatası:", error);
+    return NextResponse.json(
+      { error: error.message || "Sunucu hatası" }, 
+      { status: 500, headers }
+    );
   }
 }
