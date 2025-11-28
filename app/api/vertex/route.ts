@@ -1,14 +1,19 @@
 import { GoogleGenAI } from "@google/genai";
 import { NextResponse } from "next/server";
 
-// 1. apiKey varsa al, yoksa boş string ver (Build sırasında patlamaması için)
+// --- AYARLAR ---
 const apiKey = process.env.GOOGLE_CLOUD_API_KEY || "";
 
+// 👇 DÜZELTME BURADA: Vertex AI kullanacağını açıkça belirtiyoruz
 const ai = new GoogleGenAI({
   apiKey: apiKey,
+  vertexAI: {
+    project: '394408754498', // Senin Proje Numaran (Corpus ID'den aldım)
+    location: 'europe-west1', // Senin Bölgen
+  }
 });
 
-// --- CORS (Preflight - Tarayıcı Kontrolü) ---
+// --- CORS (Preflight) ---
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
@@ -20,15 +25,14 @@ export async function OPTIONS() {
   });
 }
 
-// --- POST (Chat İsteği) ---
+// --- POST (Chat) ---
 export async function POST(req: Request) {
-  // CORS Başlıkları
   const headers = {
     "Access-Control-Allow-Origin": "*",
     "Content-Type": "text/plain; charset=utf-8",
   };
 
-  // 2. KONTROL BURADA YAPILMALI (Sadece istek geldiğinde)
+  // Güvenlik Kontrolü
   if (!process.env.GOOGLE_CLOUD_API_KEY) {
     return NextResponse.json(
       { error: "Sunucu hatası: GOOGLE_CLOUD_API_KEY tanımlanmamış." }, 
@@ -40,14 +44,16 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { messages } = body; 
 
-    // 1. Son kullanıcı mesajını al
     const lastMessage = messages[messages.length - 1].content;
 
-    // 2. Vertex AI Ayarları
-    const modelName = 'gemini-2.5-flash-preview-09-2025';
+    // Model Adı (Vertex AI için uyumlu model)
+    // Not: "preview" modeller bazen Vertex'te farklı isimlendirilir. 
+    // Eğer hata alırsan "gemini-1.5-flash-001" dene.
+    const modelName = 'gemini-1.5-flash-001'; 
+    
     const ragCorpus = 'projects/394408754498/locations/europe-west1/ragCorpora/6917529027641081856';
     
-    // 3. Modeli Çağır (YENİ SÜRÜM SDK KULLANIMI)
+    // Modeli Çağır
     const result = await ai.models.generateContentStream({
       model: modelName,
       contents: [{ role: 'user', parts: [{ text: lastMessage }] }],
@@ -74,7 +80,7 @@ BELGE KULLANIM KURALLARI:
                     ragResource: { ragCorpus: ragCorpus },
                   },
                 ],
-                similarityTopK: 13,
+                similarityTopK: 10, // Chunk sayısı
               },
             },
           },
@@ -88,13 +94,12 @@ BELGE KULLANIM KURALLARI:
       },
     });
 
-    // 4. Stream Yanıtı Hazırla
+    // Stream Yanıtı Hazırla
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
         try {
           for await (const chunk of result.stream) {
-            // Yeni SDK'da metin chunk.text() ile gelir
             const text = chunk.text(); 
             if (text) {
               controller.enqueue(encoder.encode(text));
