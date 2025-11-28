@@ -22,7 +22,7 @@ export async function POST(req: Request) {
   try {
     // API Key kontrolü
     const apiKey = req.headers.get("x-api-key")
-    if (apiKey !== process.env.MY_INTERNAL_API_KEY) {
+    if (apiKey !== process.env.TESVIKSOR_API_KEY) {
       return NextResponse.json({ error: "Yetkisiz Erişim" }, { status: 401, headers })
     }
 

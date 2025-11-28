@@ -10,7 +10,7 @@ import { Slider } from "@/components/ui/slider"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
-import { Save, RotateCcw, Sparkles, Database, Settings2, FileText } from "lucide-react"
+import { Save, RotateCcw, Sparkles, Database, Settings2, FileText, Key } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 
 interface Config {
@@ -21,6 +21,12 @@ interface Config {
   temperature: number
   topP: number
   maxOutputTokens: number
+}
+
+interface ApiKeys {
+  supabaseUrl: string
+  supabaseAnonKey: string
+  internalApiKey: string
 }
 
 export default function AdminPage() {
@@ -34,9 +40,16 @@ export default function AdminPage() {
     maxOutputTokens: 65535,
   })
 
-  const [isSaving, setIsSaving] = useState(false)
+  const [apiKeys, setApiKeys] = useState<ApiKeys>({
+    supabaseUrl: "",
+    supabaseAnonKey: "",
+    internalApiKey: "",
+  })
 
-  // LocalStorage'dan config yükle
+  const [isSaving, setIsSaving] = useState(false)
+  const [isConnected, setIsConnected] = useState(false)
+
+  // LocalStorage'dan config ve API keys yükle
   useEffect(() => {
     const savedConfig = localStorage.getItem("vertex-ai-config")
     if (savedConfig) {
@@ -51,24 +64,88 @@ export default function AdminPage() {
         })
         .catch((err) => console.error("Config yükleme hatası:", err))
     }
+
+    const savedApiKeys = localStorage.getItem("api-keys")
+    if (savedApiKeys) {
+      const keys = JSON.parse(savedApiKeys)
+      setApiKeys(keys)
+      // Eğer Supabase bilgileri varsa, bağlantıyı kontrol et
+      if (keys.supabaseUrl && keys.supabaseAnonKey) {
+        checkSupabaseConnection(keys.supabaseUrl, keys.supabaseAnonKey)
+      }
+    }
   }, [])
+
+  const checkSupabaseConnection = async (url: string, key: string) => {
+    try {
+      const response = await fetch(`${url}/rest/v1/`, {
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+        },
+      })
+      setIsConnected(response.ok)
+    } catch {
+      setIsConnected(false)
+    }
+  }
+
+  const handleSaveApiKeys = async () => {
+    if (!apiKeys.supabaseUrl || !apiKeys.supabaseAnonKey || !apiKeys.internalApiKey) {
+      toast.error("Lütfen tüm API anahtar alanlarını doldurun")
+      return
+    }
+
+    try {
+      // LocalStorage'a kaydet
+      localStorage.setItem("api-keys", JSON.stringify(apiKeys))
+
+      // Supabase bağlantısını test et
+      await checkSupabaseConnection(apiKeys.supabaseUrl, apiKeys.supabaseAnonKey)
+
+      toast.success("API anahtarları başarıyla kaydedildi!")
+    } catch (error) {
+      toast.error("API anahtarları kaydedilirken hata oluştu")
+    }
+  }
 
   const handleSave = async () => {
     setIsSaving(true)
     try {
+      if (isConnected && apiKeys.supabaseUrl && apiKeys.supabaseAnonKey) {
+        const response = await fetch(`${apiKeys.supabaseUrl}/rest/v1/vertex_configs`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: apiKeys.supabaseAnonKey,
+            Authorization: `Bearer ${apiKeys.supabaseAnonKey}`,
+            Prefer: "return=minimal",
+          },
+          body: JSON.stringify({
+            ...config,
+            updated_at: new Date().toISOString(),
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error("Supabase'e kayıt başarısız")
+        }
+      }
+
       // LocalStorage'a kaydet
       localStorage.setItem("vertex-ai-config", JSON.stringify(config))
 
-      // API'ye de gönder (opsiyonel - gelecekte veritabanı için)
+      // API'ye de gönder
       await fetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),
       })
 
-      toast.success("Ayarlar başarıyla kaydedildi!")
+      toast.success(isConnected ? "Ayarlar Supabase'e kaydedildi!" : "Ayarlar başarıyla kaydedildi!")
     } catch (error) {
       toast.error("Ayarlar kaydedilirken hata oluştu")
+      console.error(error)
     } finally {
       setIsSaving(false)
     }
@@ -123,9 +200,12 @@ export default function AdminPage() {
             </Button>
           </div>
 
-          {/* Tabs */}
-          <Tabs defaultValue="model" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+          <Tabs defaultValue="api-keys" className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="api-keys" className="gap-2">
+                <Key className="size-4" />
+                API Ayarları
+              </TabsTrigger>
               <TabsTrigger value="model" className="gap-2">
                 <Settings2 className="size-4" />
                 Model Ayarları
@@ -139,6 +219,99 @@ export default function AdminPage() {
                 RAG Ayarları
               </TabsTrigger>
             </TabsList>
+
+            <TabsContent value="api-keys" className="space-y-6 mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>API Anahtarları</CardTitle>
+                  <CardDescription>Supabase ve güvenlik ayarlarınızı yapılandırın</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Supabase URL */}
+                  <div className="space-y-2">
+                    <Label htmlFor="supabaseUrl">Supabase URL</Label>
+                    <Input
+                      id="supabaseUrl"
+                      type="url"
+                      value={apiKeys.supabaseUrl}
+                      onChange={(e) => setApiKeys({ ...apiKeys, supabaseUrl: e.target.value })}
+                      placeholder="https://your-project.supabase.co"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Supabase projenizin URL'i (Project Settings {">"} API)
+                    </p>
+                  </div>
+
+                  {/* Supabase Anon Key */}
+                  <div className="space-y-2">
+                    <Label htmlFor="supabaseAnonKey">Supabase Anon Key</Label>
+                    <Input
+                      id="supabaseAnonKey"
+                      type="password"
+                      value={apiKeys.supabaseAnonKey}
+                      onChange={(e) => setApiKeys({ ...apiKeys, supabaseAnonKey: e.target.value })}
+                      placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Supabase anon/public API anahtarınız (Project Settings {">"} API)
+                    </p>
+                  </div>
+
+                  <Separator />
+
+                  {/* Internal API Key */}
+                  <div className="space-y-2">
+                    <Label htmlFor="internalApiKey">Internal API Key</Label>
+                    <Input
+                      id="internalApiKey"
+                      type="password"
+                      value={apiKeys.internalApiKey}
+                      onChange={(e) => setApiKeys({ ...apiKeys, internalApiKey: e.target.value })}
+                      placeholder="Güçlü bir API anahtarı girin"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Chatbot uygulamanızdan API'ye istek atarken kullanacağınız güvenlik anahtarı
+                    </p>
+                  </div>
+
+                  {isConnected && (
+                    <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-4 flex items-center gap-3">
+                      <div className="size-2 rounded-full bg-green-500 animate-pulse" />
+                      <p className="text-sm text-green-700 dark:text-green-400 font-medium">
+                        Supabase bağlantısı başarılı
+                      </p>
+                    </div>
+                  )}
+
+                  <Button onClick={handleSaveApiKeys} className="w-full gap-2">
+                    <Save className="size-4" />
+                    API Anahtarlarını Kaydet
+                  </Button>
+
+                  {/* Info */}
+                  <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-4 text-sm">
+                    <p className="font-medium text-foreground mb-2">📌 Supabase Tablo Yapısı</p>
+                    <p className="text-muted-foreground mb-3">
+                      Config'leri Supabase'de saklamak için aşağıdaki SQL sorgusunu çalıştırın:
+                    </p>
+                    <pre className="bg-muted p-3 rounded text-xs overflow-x-auto">
+                      {`CREATE TABLE vertex_configs (
+  id BIGSERIAL PRIMARY KEY,
+  model_name TEXT,
+  system_instruction TEXT,
+  rag_corpus TEXT,
+  similarity_top_k INTEGER,
+  temperature FLOAT,
+  top_p FLOAT,
+  max_output_tokens INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);`}
+                    </pre>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
             {/* Model Ayarları */}
             <TabsContent value="model" className="space-y-6 mt-6">
