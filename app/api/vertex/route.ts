@@ -7,9 +7,23 @@ if (!process.env.GOOGLE_CLOUD_API_KEY) {
   throw new Error("GOOGLE_CLOUD_API_KEY eksik!");
 }
 
+const apiKey = process.env.GOOGLE_CLOUD_API_KEY || "";
+
 const ai = new GoogleGenAI({
-  apiKey: process.env.GOOGLE_CLOUD_API_KEY,
+  apiKey: apiKey,
 });
+
+// ... (CORS Kısmı aynı kalır) ...
+
+// --- POST (Chat) ---
+export async function POST(req: Request) {
+  // 2. KONTROL BURADA YAPILMALI (Sadece istek geldiğinde)
+  if (!process.env.GOOGLE_CLOUD_API_KEY) {
+    return NextResponse.json(
+      { error: "Sunucu hatası: GOOGLE_CLOUD_API_KEY tanımlanmamış." }, 
+      { status: 500 }
+    );
+  }
 
 // --- CORS (Preflight) ---
 export async function OPTIONS() {
