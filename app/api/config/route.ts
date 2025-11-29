@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     const supabase = getSupabaseAdmin();
 
     const dbPayload = {
-      config_key: "default", // UNIQUE alan
+      config_key: "default", // 🔴 UNIQUE alan
 
       model_name: body.modelName,
       system_instruction: body.systemInstruction,
@@ -72,9 +72,10 @@ export async function POST(req: Request) {
     };
 
     const { error } = await supabase
-        .from("vertex_configs")
-        .update(dbPayload)
-        .eq("config_key", "default");
+      .from("vertex_configs")
+      .upsert(dbPayload, {
+        onConflict: "config_key",   // 🔴 mutlaka böyle
+      });
 
     if (error) throw error;
 
@@ -84,4 +85,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
 
