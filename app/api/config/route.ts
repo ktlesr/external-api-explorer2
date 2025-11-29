@@ -72,10 +72,9 @@ export async function POST(req: Request) {
     };
 
     const { error } = await supabase
-      .from("vertex_configs")
-      .upsert(dbPayload, {
-        onConflict: "config_key", // 🔴 BURASI ŞART
-      });
+        .from("vertex_configs")
+        .update(dbPayload)
+        .eq("config_key", "default");
 
     if (error) throw error;
 
