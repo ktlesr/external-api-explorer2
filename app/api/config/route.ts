@@ -58,8 +58,7 @@ export async function POST(req: Request) {
     const supabase = getSupabaseAdmin();
 
     const dbPayload = {
-      // singleton row id
-      config_key: "default",            // <— UNIQUE column
+      config_key: "default", // UNIQUE alan
 
       model_name: body.modelName,
       system_instruction: body.systemInstruction,
@@ -75,7 +74,7 @@ export async function POST(req: Request) {
     const { error } = await supabase
       .from("vertex_configs")
       .upsert(dbPayload, {
-        onConflict: "config_key", // hangi UNIQUE alanla çakışacağını söyle
+        onConflict: "config_key", // 🔴 BURASI ŞART
       });
 
     if (error) throw error;
@@ -86,3 +85,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
