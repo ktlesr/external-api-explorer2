@@ -1,11 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClient } from "@/lib/supabase-server"
-import { toast } from "sonner"
-import { Loader2 } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase-browser"
 import AdminPanel from "@/components/admin-panel"
-import { redirect } from "next/navigation"
+import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
 
 const DEFAULT_CONFIG = {
   modelName: "gemini-2.5-flash",
@@ -39,18 +39,10 @@ interface ApiKeys {
   internalApiKey: string
 }
 
-export default async function AdminPage() {
-  const supabase = await createClient()
-
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-
-  if (error || !user) {
-    redirect("/login")
-  }
-
+export default function AdminPage() {
+  const router = useRouter()
+  const [isLoading, setIsLoading] = useState(true)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [config, setConfig] = useState<Config>(DEFAULT_CONFIG)
   const [apiKeys, setApiKeys] = useState<ApiKeys>({
     supabaseUrl: "",
@@ -59,8 +51,33 @@ export default async function AdminPage() {
   })
 
   const [isSaving, setIsSaving] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
   const [connectionStatus, setConnectionStatus] = useState<"idle" | "success" | "error">("idle")
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const supabase = createClient()
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser()
+
+        if (error || !user) {
+          router.push("/login")
+          return
+        }
+
+        setIsAuthenticated(true)
+      } catch (error) {
+        console.error("Auth check failed:", error)
+        router.push("/login")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    checkAuth()
+  }, [router])
 
   useEffect(() => {
     const init = async () => {
@@ -164,12 +181,17 @@ export default async function AdminPage() {
     if (confirm("Sıfırlamak istediğinize emin misiniz?")) setConfig(DEFAULT_CONFIG)
   }
 
-  if (isLoading)
+  if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="animate-spin" />
       </div>
     )
+  }
+
+  if (!isAuthenticated) {
+    return null
+  }
 
   return <AdminPanel />
 }
