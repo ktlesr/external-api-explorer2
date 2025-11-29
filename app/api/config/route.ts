@@ -72,7 +72,7 @@ export async function POST(req: Request) {
 
     const { error } = await supabase
       .from('vertex_configs')
-      .insert([dbPayload])
+      .upsert([dbPayload])
 
     if (error) throw error
 
