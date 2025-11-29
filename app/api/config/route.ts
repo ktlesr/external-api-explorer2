@@ -54,11 +54,13 @@ export async function GET() {
 // POST: Ayarları Kaydet
 export async function POST(req: Request) {
   try {
-    const body = await req.json()
-    const supabase = getSupabaseAdmin()
+    const body = await req.json();
+    const supabase = getSupabaseAdmin();
 
-    // Veritabanına INSERT et
     const dbPayload = {
+      // singleton row id
+      config_key: "default",            // <— UNIQUE column
+
       model_name: body.modelName,
       system_instruction: body.systemInstruction,
       rag_corpus: body.ragCorpus,
@@ -66,20 +68,21 @@ export async function POST(req: Request) {
       temperature: body.temperature,
       top_p: body.topP,
       max_output_tokens: body.maxOutputTokens,
-      internal_api_key: process.env.INTERNAL_API_KEY, // Env'den alıp kaydediyoruz
-      updated_at: new Date().toISOString()
-    }
+      internal_api_key: process.env.INTERNAL_API_KEY,
+      updated_at: new Date().toISOString(),
+    };
 
     const { error } = await supabase
-      .from('vertex_configs')
-      .upsert([dbPayload])
+      .from("vertex_configs")
+      .upsert(dbPayload, {
+        onConflict: "config_key", // hangi UNIQUE alanla çakışacağını söyle
+      });
 
-    if (error) throw error
+    if (error) throw error;
 
-    return NextResponse.json({ success: true })
-
+    return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("Config POST hatası:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error("Config POST hatası:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
