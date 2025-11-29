@@ -167,9 +167,23 @@ export default function AdminPage() {
         vertex_private_key: config.vertexPrivateKey,
         updated_at: new Date().toISOString(),
       }
-      const { error } = await supabaseClient.from("vertex_configs").insert([dbPayload])
+
+      // Önce id=1 olan kaydı kontrol et (tek kayıt mantığı)
+      const { data: existingConfig } = await supabaseClient.from("vertex_configs").select("id").eq("id", 1).single()
+
+      let error
+      if (existingConfig) {
+        // Kayıt varsa güncelle
+        const result = await supabaseClient.from("vertex_configs").update(dbPayload).eq("id", 1)
+        error = result.error
+      } else {
+        // Kayıt yoksa yeni ekle (id: 1)
+        const result = await supabaseClient.from("vertex_configs").insert([{ id: 1, ...dbPayload }])
+        error = result.error
+      }
+
       if (error) throw error
-      toast.success("Tüm ayarlar kaydedildi!")
+      toast.success("Ayarlar başarıyla kaydedildi!")
     } catch (error: any) {
       toast.error(`Hata: ${error.message}`)
     } finally {
