@@ -58,6 +58,7 @@ export async function POST(req: Request) {
     const supabase = getSupabaseAdmin();
 
     const dbPayload = {
+      config_key: 'default',
       model_name: body.modelName,
       system_instruction: body.systemInstruction,
       rag_corpus: body.ragCorpus,
