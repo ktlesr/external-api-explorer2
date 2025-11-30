@@ -51,14 +51,15 @@ export async function GET() {
   }
 }
 
-// POST: Ayarları Kaydet
+// POST: Ayarları kaydet / güncelle
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const supabase = getSupabaseAdmin();
+    const body = await req.json()
+    const supabase = getSupabaseAdmin()
 
+    // Frontend'den gelen alanlar (camelCase) → DB (snake_case)
     const dbPayload = {
-      config_key: "default",
+      config_key: "default", // 🔑 tek kayıt mantığı
       model_name: body.modelName,
       system_instruction: body.systemInstruction,
       rag_corpus: body.ragCorpus,
@@ -66,46 +67,50 @@ export async function POST(req: Request) {
       temperature: body.temperature,
       top_p: body.topP,
       max_output_tokens: body.maxOutputTokens,
-      internal_api_key: process.env.INTERNAL_API_KEY,
+      internal_api_key: body.internalApiKey,
+      vertex_project_id: body.vertexProjectId,
+      vertex_client_email: body.vertexClientEmail,
+      vertex_private_key: body.vertexPrivateKey,
       updated_at: new Date().toISOString(),
-    };
+    }
 
-    // 1) Check if a row with config_key='default' already exists
+    // Önce config_key='default' var mı bak
     const { data: existing, error: selectError } = await supabase
       .from("vertex_configs")
       .select("id")
       .eq("config_key", "default")
-      .maybeSingle();
+      .maybeSingle()
 
-    if (selectError) throw selectError;
-
-    let error;
-
-    if (existing) {
-      // 2) Update existing row
-      const updateRes = await supabase
-        .from("vertex_configs")
-        .update(dbPayload)
-        .eq("id", existing.id);
-
-      error = updateRes.error;
-    } else {
-      // 3) Insert new row
-      const insertRes = await supabase
-        .from("vertex_configs")
-        .insert(dbPayload);
-
-      error = insertRes.error;
+    if (selectError && selectError.code !== "PGRST116") {
+      throw selectError
     }
 
-    if (error) throw error;
+    let error
 
-    return NextResponse.json({ success: true });
+    if (existing) {
+      // Varsa güncelle
+      const result = await supabase
+        .from("vertex_configs")
+        .update(dbPayload)
+        .eq("id", existing.id)
+
+      error = result.error
+    } else {
+      // Yoksa ekle
+      const result = await supabase
+        .from("vertex_configs")
+        .insert([dbPayload])
+
+      error = result.error
+    }
+
+    if (error) throw error
+
+    return NextResponse.json({ success: true })
   } catch (error: any) {
-    console.error("Config POST hatası:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Config POST hatası:", error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
-
 
 
