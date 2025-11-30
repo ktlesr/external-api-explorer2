@@ -51,15 +51,14 @@ export async function GET() {
   }
 }
 
-// POST: Ayarları kaydet / güncelle
+// POST: Ayarları Kaydet
 export async function POST(req: Request) {
   try {
     const body = await req.json()
     const supabase = getSupabaseAdmin()
 
-    // Frontend'den gelen alanlar (camelCase) → DB (snake_case)
+    // Veritabanına INSERT et
     const dbPayload = {
-      config_key: "default", // 🔑 tek kayıt mantığı
       model_name: body.modelName,
       system_instruction: body.systemInstruction,
       rag_corpus: body.ragCorpus,
@@ -67,50 +66,20 @@ export async function POST(req: Request) {
       temperature: body.temperature,
       top_p: body.topP,
       max_output_tokens: body.maxOutputTokens,
-      internal_api_key: body.internalApiKey,
-      vertex_project_id: body.vertexProjectId,
-      vertex_client_email: body.vertexClientEmail,
-      vertex_private_key: body.vertexPrivateKey,
-      updated_at: new Date().toISOString(),
+      internal_api_key: process.env.INTERNAL_API_KEY, // Env'den alıp kaydediyoruz
+      updated_at: new Date().toISOString()
     }
 
-    // Önce config_key='default' var mı bak
-    const { data: existing, error: selectError } = await supabase
-      .from("vertex_configs")
-      .select("id")
-      .eq("config_key", "default")
-      .maybeSingle()
-
-    if (selectError && selectError.code !== "PGRST116") {
-      throw selectError
-    }
-
-    let error
-
-    if (existing) {
-      // Varsa güncelle
-      const result = await supabase
-        .from("vertex_configs")
-        .update(dbPayload)
-        .eq("id", existing.id)
-
-      error = result.error
-    } else {
-      // Yoksa ekle
-      const result = await supabase
-        .from("vertex_configs")
-        .insert([dbPayload])
-
-      error = result.error
-    }
+    const { error } = await supabase
+      .from('vertex_configs')
+      .insert([dbPayload])
 
     if (error) throw error
 
     return NextResponse.json({ success: true })
+
   } catch (error: any) {
     console.error("Config POST hatası:", error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
-
-

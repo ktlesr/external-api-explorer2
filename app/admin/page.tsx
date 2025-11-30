@@ -41,12 +41,9 @@ interface ApiKeys {
 
 export default function AdminPage() {
   const router = useRouter()
-
   const [isLoading, setIsLoading] = useState(true)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-
   const [config, setConfig] = useState<Config>(DEFAULT_CONFIG)
-
   const [apiKeys, setApiKeys] = useState<ApiKeys>({
     supabaseUrl: "",
     supabaseAnonKey: "",
@@ -56,7 +53,6 @@ export default function AdminPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<"idle" | "success" | "error">("idle")
 
-  // --- Auth check ---
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -83,7 +79,6 @@ export default function AdminPage() {
     checkAuth()
   }, [router])
 
-  // --- LocalStorage + ilk config yükleme ---
   useEffect(() => {
     const init = async () => {
       const savedApiKeys = localStorage.getItem("api-keys")
@@ -102,12 +97,10 @@ export default function AdminPage() {
     init()
   }, [])
 
-  // --- Supabase'ten son config'i çek ---
   const fetchLatestConfig = async (url: string, key: string) => {
     setIsLoading(true)
     try {
       const supabaseClient = createClient(url, key)
-
       const { data, error } = await supabaseClient
         .from("vertex_configs")
         .select("*")
@@ -115,7 +108,6 @@ export default function AdminPage() {
         .limit(1)
         .single()
 
-      // 0 satır hatasını (PGRST116) yok say
       if (error && error.code !== "PGRST116") throw error
 
       if (data) {
@@ -124,24 +116,16 @@ export default function AdminPage() {
           systemInstruction: data.system_instruction || "",
           ragCorpus: data.rag_corpus || "",
           similarityTopK: data.similarity_top_k || 50,
-          temperature: data.temperature ?? 0.1,
-          topP: data.top_p ?? 0.95,
+          temperature: data.temperature ?? 0.1, // Null check
+          topP: data.top_p ?? 0.95, // Null check
           maxOutputTokens: data.max_output_tokens || 65535,
           vertexProjectId: data.vertex_project_id || "",
           vertexClientEmail: data.vertex_client_email || "",
           vertexPrivateKey: data.vertex_private_key || "",
         })
-
-        if (data.internal_api_key) {
-          setApiKeys((prev) => ({
-            ...prev,
-            internalApiKey: data.internal_api_key,
-          }))
-        }
-
+        if (data.internal_api_key) setApiKeys((prev) => ({ ...prev, internalApiKey: data.internal_api_key }))
         toast.success("Ayarlar yüklendi")
       }
-
       setConnectionStatus("success")
     } catch (error) {
       console.error(error)
@@ -152,30 +136,25 @@ export default function AdminPage() {
     }
   }
 
-  // --- Supabase URL / anon key kaydet + test ---
   const handleSaveConnection = async () => {
     if (!apiKeys.supabaseUrl || !apiKeys.supabaseAnonKey) {
       toast.error("Alanları doldurun")
       return
     }
-
     localStorage.setItem("api-keys", JSON.stringify(apiKeys))
     await fetchLatestConfig(apiKeys.supabaseUrl, apiKeys.supabaseAnonKey)
   }
 
-  // --- Config kaydet: config_key='default' üzerinden tek kayıt mantığı ---
   const handleSaveConfig = async () => {
     if (connectionStatus !== "success") {
       toast.error("Supabase bağlantısı yok.")
       return
     }
-
     setIsSaving(true)
-
     try {
       const supabaseClient = createClient(apiKeys.supabaseUrl, apiKeys.supabaseAnonKey)
-
       const dbPayload = {
+        id: 1, // id: 1 sabit tutarak tek kayıt mantığı sağlıyoruz
         model_name: config.modelName,
         system_instruction: config.systemInstruction,
         rag_corpus: config.ragCorpus,
@@ -190,42 +169,11 @@ export default function AdminPage() {
         updated_at: new Date().toISOString(),
       }
 
-      // 1) config_key='default' satırını bul
-      const { data: existingConfig, error: selectError } = await supabaseClient
-        .from("vertex_configs")
-        .select("id")
-        .eq("config_key", "default")
-        .maybeSingle()
-
-      if (selectError && selectError.code !== "PGRST116") {
-        // PGRST116 = 0 satır, onu hata saymıyoruz
-        throw selectError
-      }
-
-      let error
-
-      if (existingConfig) {
-        // 2) Varsa o kaydı güncelle
-        const result = await supabaseClient
-          .from("vertex_configs")
-          .update(dbPayload)
-          .eq("id", existingConfig.id)
-
-        error = result.error
-      } else {
-        // 3) Yoksa yeni ekle – config_key'i mutlaka gönder
-        const result = await supabaseClient
-          .from("vertex_configs")
-          .insert([{ config_key: "default", ...dbPayload }])
-
-        error = result.error
-      }
+      const { error } = await supabaseClient.from("vertex_configs").upsert(dbPayload, { onConflict: "id" })
 
       if (error) throw error
-
       toast.success("Ayarlar başarıyla kaydedildi!")
     } catch (error: any) {
-      console.error(error)
       toast.error(`Hata: ${error.message}`)
     } finally {
       setIsSaving(false)
@@ -233,9 +181,7 @@ export default function AdminPage() {
   }
 
   const handleReset = () => {
-    if (confirm("Sıfırlamak istediğinize emin misiniz?")) {
-      setConfig(DEFAULT_CONFIG)
-    }
+    if (confirm("Sıfırlamak istediğinize emin misiniz?")) setConfig(DEFAULT_CONFIG)
   }
 
   if (isLoading) {
@@ -250,8 +196,5 @@ export default function AdminPage() {
     return null
   }
 
-  // Burada AdminPanel'e nasıl props verdiğin tamamen senin mevcut tasarımına bağlı.
-  // Şu an için mevcut kodunu bozmamak adına aynı bırakıyorum.
-  // Eğer AdminPanel config/apiKeys/save handler'ları props olarak bekliyorsa, buraya ekleyebilirsin.
   return <AdminPanel />
 }
