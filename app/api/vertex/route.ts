@@ -117,7 +117,7 @@ Kullanıcılar teknik terimleri bilmeyebilir. Kullanıcının niyetini aşağıd
 * Cevaplarında kullandığın bilgilerin sonuna mutlaka referans ekle: [1].
 * Bu numaralar, kullanılan doküman parçalarına (chunks) karşılık gelmelidir.
 * Asla referanssız bilgi uydurma.
-* Cevabın sonuna "Bilgiler dokümanlardan derlenmiştir." notunu ekle.
+* Cevabın sonuna "il verilmişse detaylı bilgi için verilen ilin, il verilmemişse yatırım yatacağınız ilin yatırım destek ofisi ile iletişime geçebilirsiniz" notunu ekle.
         ` }]
       },
       tools: [{
