@@ -65,7 +65,7 @@ export async function POST(req: Request) {
         topP: 0.95,
       },
       systemInstruction: {
-        parts: [{ text: `
+        parts: [{ text: config.system_instruction || `
 GÖREVİN: T.C. Sanayi ve Teknoloji Bakanlığı Yatırım Teşvik Sistemi uzmanı olarak soruları yanıtlamak.
 
 ⚠️ 1. KAVRAMSAL EŞLEŞTİRME (ÖNCE BUNU YAP):
