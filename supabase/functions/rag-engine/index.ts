@@ -207,8 +207,8 @@ serve(async (req) => {
         const importConfig: any = {
           ragFileTransformationConfig: {
             ragFileChunkingConfig: {
-              chunkSize: chunkSize || 1024,
-              chunkOverlap: chunkOverlap || 256,
+              chunk_size: chunkSize || 1024,
+              chunk_overlap: chunkOverlap || 256,
             },
           },
           maxEmbeddingRequestsPerMin: maxEmbeddingRequestsPerMin || 1000,
@@ -263,8 +263,8 @@ serve(async (req) => {
         const importConfig: any = {
           ragFileTransformationConfig: {
             ragFileChunkingConfig: {
-              chunkSize: chunkSize || 1024,
-              chunkOverlap: chunkOverlap || 256,
+              chunk_size: chunkSize || 1024,
+              chunk_overlap: chunkOverlap || 256,
             },
           },
           maxEmbeddingRequestsPerMin: maxEmbeddingRequestsPerMin || 1000,
