@@ -35,6 +35,7 @@ const DEFAULT_CONFIG = {
   vertexProjectId: "",
   vertexClientEmail: "",
   vertexPrivateKey: "",
+  stagingBucket: "",
 }
 
 interface Config {
@@ -48,6 +49,7 @@ interface Config {
   vertexProjectId: string
   vertexClientEmail: string
   vertexPrivateKey: string
+  stagingBucket: string
 }
 
 export default function AdminPanel() {
@@ -86,6 +88,7 @@ export default function AdminPanel() {
           vertexProjectId: data.vertex_project_id || "",
           vertexClientEmail: data.vertex_client_email || "",
           vertexPrivateKey: data.vertex_private_key || "",
+          stagingBucket: data.staging_bucket || "",
         })
         if (data.internal_api_key) {
           setInternalApiKey(data.internal_api_key || "")
@@ -117,6 +120,7 @@ export default function AdminPanel() {
         vertex_project_id: config.vertexProjectId,
         vertex_client_email: config.vertexClientEmail,
         vertex_private_key: config.vertexPrivateKey,
+        staging_bucket: config.stagingBucket,
         updated_at: new Date().toISOString(),
       }
       const { error } = await supabase
@@ -339,7 +343,19 @@ export default function AdminPanel() {
                   <Input
                     value={config.ragCorpus}
                     onChange={(e) => setConfig({ ...config, ragCorpus: e.target.value })}
+                    placeholder="projects/.../locations/.../ragCorpora/..."
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label>Staging Bucket (Yerel dosya yükleme için)</Label>
+                  <Input
+                    value={config.stagingBucket}
+                    onChange={(e) => setConfig({ ...config, stagingBucket: e.target.value })}
+                    placeholder="my-project-rag-staging"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    GCS bucket adı. Yerel dosya yüklerken dosyalar önce buraya yüklenir.
+                  </p>
                 </div>
                 <div className="space-y-4">
                   <div className="flex justify-between">
