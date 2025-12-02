@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import { createClient } from "@/lib/supabase-browser"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,7 +16,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
+  const navigate = useNavigate()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,8 +32,7 @@ export default function LoginPage() {
       if (error) throw error
 
       toast.success("Giriş başarılı!")
-      router.push("/admin")
-      router.refresh()
+      navigate("/admin")
     } catch (error: any) {
       toast.error(error.message || "Giriş yapılamadı")
     } finally {

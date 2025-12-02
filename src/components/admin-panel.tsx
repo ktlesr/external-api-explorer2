@@ -25,6 +25,7 @@ import {
   LogOut,
 } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { useNavigate } from "react-router-dom"
 
 const DEFAULT_CONFIG = {
   modelName: "gemini-2.5-flash",
@@ -60,6 +61,7 @@ interface ApiKeys {
 
 export default function AdminPanel() {
   const router = useRouter()
+  const navigate = useNavigate()
   const [config, setConfig] = useState<Config>(DEFAULT_CONFIG)
   const [apiKeys, setApiKeys] = useState<ApiKeys>({
     supabaseUrl: "",
@@ -178,8 +180,7 @@ export default function AdminPanel() {
       const supabase = createBrowserClient()
       await supabase.auth.signOut()
       toast.success("Çıkış yapıldı")
-      router.push("/login")
-      router.refresh()
+      navigate("/login")
     } catch (error) {
       toast.error("Çıkış yapılamadı")
     }
