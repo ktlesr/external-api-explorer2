@@ -20,6 +20,9 @@ RUN if [ -f pnpm-lock.yaml ]; then pnpm run build:dev; else npm run build:dev; f
 # Stage 2: Production server
 FROM nginx:alpine AS runner
 
+# Install ca-certificates for HTTPS proxy
+RUN apk add --no-cache ca-certificates
+
 # Copy built static files to nginx
 COPY --from=builder /app/dist /usr/share/nginx/html
 
@@ -30,6 +33,10 @@ RUN echo 'server { \
     server_name _; \
     root /usr/share/nginx/html; \
     index index.html; \
+    \
+    # DNS resolver for proxy \
+    resolver 8.8.8.8 8.8.4.4 valid=300s; \
+    resolver_timeout 5s; \
     \
     # Disable access log for health checks \
     location = /health { \
@@ -52,7 +59,10 @@ RUN echo 'server { \
         } \
         \
         # Proxy to Supabase Edge Function \
-        proxy_pass https://zyxiznikuvpwmopraauj.supabase.co/functions/v1/vertex-chat; \
+        set $upstream https://zyxiznikuvpwmopraauj.supabase.co; \
+        proxy_pass $upstream/functions/v1/vertex-chat; \
+        proxy_ssl_server_name on; \
+        proxy_ssl_protocols TLSv1.2 TLSv1.3; \
         proxy_http_version 1.1; \
         proxy_set_header Host zyxiznikuvpwmopraauj.supabase.co; \
         proxy_set_header X-Real-IP $remote_addr; \
