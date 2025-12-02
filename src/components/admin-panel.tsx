@@ -120,6 +120,7 @@ export default function AdminPanel() {
     setIsSaving(true)
     try {
       const dbPayload = {
+        config_key: 'default',
         model_name: config.modelName,
         system_instruction: config.systemInstruction,
         rag_corpus: config.ragCorpus,
@@ -133,7 +134,9 @@ export default function AdminPanel() {
         vertex_private_key: config.vertexPrivateKey,
         updated_at: new Date().toISOString(),
       }
-      const { error } = await supabase.from("vertex_configs").insert([dbPayload])
+      const { error } = await supabase
+        .from("vertex_configs")
+        .upsert(dbPayload, { onConflict: 'config_key' })
       if (error) throw error
       toast.success("Tüm ayarlar kaydedildi!")
       await fetchLatestConfig()
