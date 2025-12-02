@@ -1,43 +1,43 @@
-# Stage 1: Dependencies
-FROM node:20-alpine AS deps
-WORKDIR /app
-
-# Copy package files
-COPY package.json package-lock.json* ./
-
-RUN npm install --frozen-lockfile || npm install
-
-# Stage 2: Builder
+# Stage 1: Build
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
+# Copy package files
+COPY package.json pnpm-lock.yaml* package-lock.json* ./
+
+# Install dependencies (prefer pnpm if lock file exists)
+RUN npm install -g pnpm || true
+RUN if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; \
+    elif [ -f package-lock.json ]; then npm ci; \
+    else npm install; fi
+
+# Copy source files
 COPY . .
 
-# Build the Next.js app
-RUN npm run build
+# Build the Vite app (outputs to /app/dist)
+RUN if [ -f pnpm-lock.yaml ]; then pnpm run build; else npm run build; fi
 
-# Stage 3: Runner
-FROM node:20-alpine AS runner
-WORKDIR /app
+# Stage 2: Production server
+FROM nginx:alpine AS runner
 
-ENV NODE_ENV=production
+# Copy built static files to nginx
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Copy custom nginx config for SPA routing
+RUN echo 'server { \
+    listen 80; \
+    server_name _; \
+    root /usr/share/nginx/html; \
+    index index.html; \
+    location / { \
+        try_files $uri $uri/ /index.html; \
+    } \
+    location /assets { \
+        expires 1y; \
+        add_header Cache-Control "public, immutable"; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
 
-# Copy necessary files
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+EXPOSE 80
 
-USER nextjs
-
-EXPOSE 3000
-
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-
-CMD ["node", "server.js"]
+CMD ["nginx", "-g", "daemon off;"]
