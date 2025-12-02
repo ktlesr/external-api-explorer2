@@ -16,7 +16,6 @@ import {
   Database,
   Settings2,
   FileText,
-  Key,
   Cloud,
   Loader2,
   ShieldCheck,
@@ -51,20 +50,10 @@ interface Config {
   vertexPrivateKey: string
 }
 
-interface ApiKeys {
-  supabaseUrl: string
-  supabaseAnonKey: string
-  internalApiKey: string
-}
-
 export default function AdminPanel() {
   const navigate = useNavigate()
   const [config, setConfig] = useState<Config>(DEFAULT_CONFIG)
-  const [apiKeys, setApiKeys] = useState<ApiKeys>({
-    supabaseUrl: "",
-    supabaseAnonKey: "",
-    internalApiKey: "",
-  })
+  const [internalApiKey, setInternalApiKey] = useState("")
 
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -99,7 +88,7 @@ export default function AdminPanel() {
           vertexPrivateKey: data.vertex_private_key || "",
         })
         if (data.internal_api_key) {
-          setApiKeys((prev) => ({ ...prev, internalApiKey: data.internal_api_key || "" }))
+          setInternalApiKey(data.internal_api_key || "")
         }
         toast.success("Ayarlar yüklendi")
       } else {
@@ -110,10 +99,6 @@ export default function AdminPanel() {
     } finally {
       setIsLoading(false)
     }
-  }
-
-  const handleSaveConnection = async () => {
-    await fetchLatestConfig()
   }
 
   const handleSaveConfig = async () => {
@@ -128,7 +113,7 @@ export default function AdminPanel() {
         temperature: config.temperature,
         top_p: config.topP,
         max_output_tokens: config.maxOutputTokens,
-        internal_api_key: apiKeys.internalApiKey,
+        internal_api_key: internalApiKey,
         vertex_project_id: config.vertexProjectId,
         vertex_client_email: config.vertexClientEmail,
         vertex_private_key: config.vertexPrivateKey,
@@ -193,11 +178,8 @@ export default function AdminPanel() {
           </Button>
         </div>
 
-        <Tabs defaultValue="connection" className="w-full">
-          <TabsList className="grid w-full grid-cols-5 bg-muted/50 p-1 rounded-xl">
-            <TabsTrigger value="connection" className="gap-2">
-              <Key className="size-4" /> Bağlantı
-            </TabsTrigger>
+        <Tabs defaultValue="credentials" className="w-full">
+          <TabsList className="grid w-full grid-cols-4 bg-muted/50 p-1 rounded-xl">
             <TabsTrigger value="credentials" className="gap-2">
               <ShieldCheck className="size-4" /> Kimlik
             </TabsTrigger>
@@ -212,40 +194,21 @@ export default function AdminPanel() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="connection" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Supabase Bağlantısı</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Input
-                  value={apiKeys.supabaseUrl}
-                  onChange={(e) => setApiKeys({ ...apiKeys, supabaseUrl: e.target.value })}
-                  placeholder="Supabase URL"
-                />
-                <Input
-                  type="password"
-                  value={apiKeys.supabaseAnonKey}
-                  onChange={(e) => setApiKeys({ ...apiKeys, supabaseAnonKey: e.target.value })}
-                  placeholder="Anon Key"
-                />
-                <Input
-                  type="password"
-                  value={apiKeys.internalApiKey}
-                  onChange={(e) => setApiKeys({ ...apiKeys, internalApiKey: e.target.value })}
-                  placeholder="Internal Chat API Key"
-                />
-                <Button onClick={handleSaveConnection}>Bağlan</Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
           <TabsContent value="credentials" className="mt-6">
             <Card>
               <CardHeader>
                 <CardTitle>Google Cloud Credentials</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label>Internal Chat API Key</Label>
+                  <Input
+                    type="password"
+                    value={internalApiKey}
+                    onChange={(e) => setInternalApiKey(e.target.value)}
+                    placeholder="internal_..."
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label>Project ID</Label>
                   <Input
