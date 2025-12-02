@@ -20,7 +20,9 @@ import {
   Loader2,
   ShieldCheck,
   LogOut,
+  BookOpen,
 } from "lucide-react"
+import { RagEnginePanel } from "@/components/rag-engine"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useNavigate } from "react-router-dom"
 
@@ -179,7 +181,7 @@ export default function AdminPanel() {
         </div>
 
         <Tabs defaultValue="credentials" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 bg-muted/50 p-1 rounded-xl">
+          <TabsList className="grid w-full grid-cols-5 bg-muted/50 p-1 rounded-xl">
             <TabsTrigger value="credentials" className="gap-2">
               <ShieldCheck className="size-4" /> Kimlik
             </TabsTrigger>
@@ -191,6 +193,9 @@ export default function AdminPanel() {
             </TabsTrigger>
             <TabsTrigger value="rag" className="gap-2">
               <Database className="size-4" /> RAG
+            </TabsTrigger>
+            <TabsTrigger value="rag-engine" className="gap-2">
+              <BookOpen className="size-4" /> RAG Engine
             </TabsTrigger>
           </TabsList>
 
@@ -353,6 +358,10 @@ export default function AdminPanel() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="rag-engine" className="mt-6">
+            <RagEnginePanel />
           </TabsContent>
         </Tabs>
       </main>
