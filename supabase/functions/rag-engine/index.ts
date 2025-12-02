@@ -66,6 +66,13 @@ async function getAccessToken(clientEmail: string, privateKey: string): Promise<
   return tokenData.access_token;
 }
 
+interface FileData {
+  name: string;
+  content: string; // base64 encoded
+  mimeType: string;
+  size: number;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -91,6 +98,7 @@ serve(async (req) => {
     const clientEmail = config.vertex_client_email;
     const privateKey = (config.vertex_private_key || "").replace(/\\n/g, "\n");
     const ragCorpus = config.rag_corpus;
+    const stagingBucket = config.staging_bucket || `${projectId}-rag-staging`;
     const location = "europe-west1";
 
     if (!projectId || !clientEmail || !privateKey) {
@@ -139,6 +147,112 @@ serve(async (req) => {
         
         const data = await response.json();
         return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      case "upload-and-import": {
+        const { files, chunkSize, chunkOverlap, maxEmbeddingRequestsPerMin, parserType, parserConfig } = params as {
+          files: FileData[];
+          chunkSize: number;
+          chunkOverlap: number;
+          maxEmbeddingRequestsPerMin: number;
+          parserType: string;
+          parserConfig: any;
+        };
+
+        if (!files || files.length === 0) {
+          throw new Error("No files provided");
+        }
+
+        console.log(`Uploading ${files.length} files to GCS bucket: ${stagingBucket}`);
+
+        // Upload files to GCS staging bucket
+        const gcsUris: string[] = [];
+        const timestamp = Date.now();
+
+        for (const file of files) {
+          const fileName = `rag-uploads/${timestamp}/${file.name}`;
+          const uploadUrl = `https://storage.googleapis.com/upload/storage/v1/b/${stagingBucket}/o?uploadType=media&name=${encodeURIComponent(fileName)}`;
+          
+          console.log(`Uploading file: ${file.name} (${file.size} bytes) to ${fileName}`);
+
+          // Decode base64 content
+          const fileContent = Uint8Array.from(atob(file.content), c => c.charCodeAt(0));
+
+          const uploadResponse = await fetch(uploadUrl, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": file.mimeType,
+            },
+            body: fileContent,
+          });
+
+          if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text();
+            console.error(`Upload failed for ${file.name}:`, errorText);
+            throw new Error(`Failed to upload ${file.name}: ${uploadResponse.status} - ${errorText}`);
+          }
+
+          const uploadResult = await uploadResponse.json();
+          console.log(`Uploaded ${file.name} successfully:`, uploadResult.name);
+          
+          gcsUris.push(`gs://${stagingBucket}/${fileName}`);
+        }
+
+        console.log(`All files uploaded. GCS URIs:`, gcsUris);
+
+        // Now import from GCS
+        const importConfig: any = {
+          ragFileTransformationConfig: {
+            ragFileChunkingConfig: {
+              chunkSize: chunkSize || 1024,
+              chunkOverlap: chunkOverlap || 256,
+            },
+          },
+          maxEmbeddingRequestsPerMin: maxEmbeddingRequestsPerMin || 1000,
+          gcsSource: { uris: gcsUris },
+        };
+
+        // Set parser config
+        if (parserType === "llm") {
+          importConfig.ragFileParsingConfig = {
+            llmParser: {
+              model: `projects/${projectId}/locations/${location}/publishers/google/models/${parserConfig?.model || "gemini-1.5-flash"}`,
+              ...(parserConfig?.maxParsingRequestsPerMin && { maxParsingRequestsPerMin: parserConfig.maxParsingRequestsPerMin }),
+              ...(parserConfig?.customParsingPrompt && { customParsingPrompt: parserConfig.customParsingPrompt }),
+            },
+          };
+        } else if (parserType === "layout") {
+          importConfig.ragFileParsingConfig = {
+            layoutParser: {
+              processorName: `projects/${projectId}/locations/${parserConfig?.processorRegion}/processors/${parserConfig?.processorId}`,
+              maxParsingRequestsPerMin: parserConfig?.maxParsingRequestsPerMin || 120,
+            },
+          };
+        }
+
+        const importUrl = `https://${location}-aiplatform.googleapis.com/v1/${ragCorpus}/ragFiles:import`;
+        console.log("Importing files from GCS:", importUrl, "with config:", JSON.stringify({ importRagFilesConfig: importConfig }));
+
+        const importResponse = await fetch(importUrl, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ importRagFilesConfig: importConfig }),
+        });
+
+        if (!importResponse.ok) {
+          const errorText = await importResponse.text();
+          console.error("Import files error:", errorText);
+          throw new Error(`Import failed: ${importResponse.status} - ${errorText}`);
+        }
+
+        const importData = await importResponse.json();
+        return new Response(JSON.stringify({ ...importData, uploadedFiles: gcsUris.length }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }

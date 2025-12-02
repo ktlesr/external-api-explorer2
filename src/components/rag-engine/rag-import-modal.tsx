@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useRef, useCallback } from "react"
 import { supabase } from "@/integrations/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { toast } from "sonner"
-import { Loader2, Upload, Cloud, FolderOpen } from "lucide-react"
+import { Loader2, Upload, Cloud, FolderOpen, FileUp, X, FileText } from "lucide-react"
 
 interface RagImportModalProps {
   open: boolean
@@ -29,7 +29,7 @@ interface RagImportModalProps {
   onSuccess: () => void
 }
 
-type SourceType = "gcs" | "googleDrive"
+type SourceType = "gcs" | "googleDrive" | "localFile"
 type ParserType = "default" | "llm" | "layout"
 
 const LLM_MODELS = [
@@ -42,13 +42,49 @@ const LLM_MODELS = [
 
 const PROCESSOR_REGIONS = ["eu", "us"]
 
+const SUPPORTED_FILE_TYPES = {
+  "application/pdf": [".pdf"],
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+  "application/msword": [".doc"],
+  "text/plain": [".txt"],
+  "text/html": [".html"],
+  "text/csv": [".csv"],
+  "application/json": [".json"],
+  "application/jsonl": [".jsonl"],
+  "application/x-ndjson": [".jsonl"],
+  "text/markdown": [".md"],
+}
+
+const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return bytes + " B"
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB"
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB"
+}
+
+function getFileExtension(filename: string): string {
+  return filename.slice(filename.lastIndexOf(".")).toLowerCase()
+}
+
+function isFileTypeSupported(file: File): boolean {
+  const ext = getFileExtension(file.name)
+  const supportedExtensions = Object.values(SUPPORTED_FILE_TYPES).flat()
+  return supportedExtensions.includes(ext)
+}
+
 export function RagImportModal({ open, onOpenChange, onSuccess }: RagImportModalProps) {
   const [isImporting, setIsImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   
   // Source settings
   const [sourceType, setSourceType] = useState<SourceType>("gcs")
   const [gcsUri, setGcsUri] = useState("")
   const [driveResourceId, setDriveResourceId] = useState("")
+  
+  // Local file upload
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [isDragging, setIsDragging] = useState(false)
   
   // Chunking settings
   const [chunkSize, setChunkSize] = useState(1024)
@@ -68,6 +104,71 @@ export function RagImportModal({ open, onOpenChange, onSuccess }: RagImportModal
   const [layoutProcessorId, setLayoutProcessorId] = useState("")
   const [layoutMaxParsingRequests, setLayoutMaxParsingRequests] = useState(120)
 
+  const handleFileSelect = useCallback((files: FileList | null) => {
+    if (!files) return
+    
+    const newFiles: File[] = []
+    const errors: string[] = []
+    
+    Array.from(files).forEach(file => {
+      if (!isFileTypeSupported(file)) {
+        errors.push(`${file.name}: Desteklenmeyen dosya türü`)
+        return
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        errors.push(`${file.name}: Dosya boyutu 20MB'ı aşıyor`)
+        return
+      }
+      newFiles.push(file)
+    })
+    
+    if (errors.length > 0) {
+      toast.error(errors.join("\n"))
+    }
+    
+    setSelectedFiles(prev => [...prev, ...newFiles])
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    handleFileSelect(e.dataTransfer.files)
+  }, [handleFileSelect])
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result as string
+        // Remove data URL prefix (e.g., "data:application/pdf;base64,")
+        const base64 = result.split(",")[1]
+        resolve(base64)
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const getMimeType = (file: File): string => {
+    const ext = getFileExtension(file.name)
+    if (ext === ".jsonl") return "application/jsonl"
+    return file.type || "application/octet-stream"
+  }
+
   const handleImport = async () => {
     // Validation
     if (sourceType === "gcs" && !gcsUri) {
@@ -78,6 +179,10 @@ export function RagImportModal({ open, onOpenChange, onSuccess }: RagImportModal
       toast.error("Google Drive Resource ID gerekli")
       return
     }
+    if (sourceType === "localFile" && selectedFiles.length === 0) {
+      toast.error("En az bir dosya seçin")
+      return
+    }
     if (parserType === "layout" && !layoutProcessorId) {
       toast.error("Document AI Processor ID gerekli")
       return
@@ -86,13 +191,6 @@ export function RagImportModal({ open, onOpenChange, onSuccess }: RagImportModal
     setIsImporting(true)
 
     try {
-      const source: any = { type: sourceType }
-      if (sourceType === "gcs") {
-        source.uri = gcsUri
-      } else if (sourceType === "googleDrive") {
-        source.resourceId = driveResourceId
-      }
-
       const parserConfig: any = {}
       if (parserType === "llm") {
         parserConfig.model = llmModel
@@ -108,17 +206,57 @@ export function RagImportModal({ open, onOpenChange, onSuccess }: RagImportModal
         parserConfig.maxParsingRequestsPerMin = layoutMaxParsingRequests
       }
 
-      const { data, error } = await supabase.functions.invoke("rag-engine", {
-        body: {
-          action: "import-files",
-          source,
-          chunkSize,
-          chunkOverlap,
-          maxEmbeddingRequestsPerMin,
-          parserType,
-          parserConfig,
-        },
-      })
+      let data, error
+
+      if (sourceType === "localFile") {
+        // Convert files to base64 and upload
+        toast.info("Dosyalar yükleniyor...")
+        
+        const filesData = await Promise.all(
+          selectedFiles.map(async (file) => ({
+            name: file.name,
+            content: await fileToBase64(file),
+            mimeType: getMimeType(file),
+            size: file.size,
+          }))
+        )
+
+        const result = await supabase.functions.invoke("rag-engine", {
+          body: {
+            action: "upload-and-import",
+            files: filesData,
+            chunkSize,
+            chunkOverlap,
+            maxEmbeddingRequestsPerMin,
+            parserType,
+            parserConfig,
+          },
+        })
+        data = result.data
+        error = result.error
+      } else {
+        // Existing GCS/Google Drive flow
+        const source: any = { type: sourceType }
+        if (sourceType === "gcs") {
+          source.uri = gcsUri
+        } else if (sourceType === "googleDrive") {
+          source.resourceId = driveResourceId
+        }
+
+        const result = await supabase.functions.invoke("rag-engine", {
+          body: {
+            action: "import-files",
+            source,
+            chunkSize,
+            chunkOverlap,
+            maxEmbeddingRequestsPerMin,
+            parserType,
+            parserConfig,
+          },
+        })
+        data = result.data
+        error = result.error
+      }
 
       if (error) throw error
 
@@ -141,6 +279,7 @@ export function RagImportModal({ open, onOpenChange, onSuccess }: RagImportModal
     setSourceType("gcs")
     setGcsUri("")
     setDriveResourceId("")
+    setSelectedFiles([])
     setChunkSize(1024)
     setChunkOverlap(256)
     setMaxEmbeddingRequestsPerMin(1000)
@@ -170,32 +309,45 @@ export function RagImportModal({ open, onOpenChange, onSuccess }: RagImportModal
             <RadioGroup
               value={sourceType}
               onValueChange={(v: string) => setSourceType(v as SourceType)}
-              className="grid grid-cols-2 gap-4"
+              className="grid grid-cols-3 gap-3"
             >
               <Label
                 htmlFor="gcs"
-                className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${
+                className={`flex flex-col items-center gap-2 p-4 border rounded-lg cursor-pointer transition-colors text-center ${
                   sourceType === "gcs" ? "border-primary bg-primary/5" : "hover:bg-muted"
                 }`}
               >
-                <RadioGroupItem value="gcs" id="gcs" />
-                <Cloud className="size-5" />
+                <RadioGroupItem value="gcs" id="gcs" className="sr-only" />
+                <Cloud className="size-6" />
                 <div>
-                  <p className="font-medium">Google Cloud Storage</p>
+                  <p className="font-medium text-sm">Google Cloud Storage</p>
                   <p className="text-xs text-muted-foreground">gs://bucket/path</p>
                 </div>
               </Label>
               <Label
                 htmlFor="googleDrive"
-                className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${
+                className={`flex flex-col items-center gap-2 p-4 border rounded-lg cursor-pointer transition-colors text-center ${
                   sourceType === "googleDrive" ? "border-primary bg-primary/5" : "hover:bg-muted"
                 }`}
               >
-                <RadioGroupItem value="googleDrive" id="googleDrive" />
-                <FolderOpen className="size-5" />
+                <RadioGroupItem value="googleDrive" id="googleDrive" className="sr-only" />
+                <FolderOpen className="size-6" />
                 <div>
-                  <p className="font-medium">Google Drive</p>
+                  <p className="font-medium text-sm">Google Drive</p>
                   <p className="text-xs text-muted-foreground">File/Folder ID</p>
+                </div>
+              </Label>
+              <Label
+                htmlFor="localFile"
+                className={`flex flex-col items-center gap-2 p-4 border rounded-lg cursor-pointer transition-colors text-center ${
+                  sourceType === "localFile" ? "border-primary bg-primary/5" : "hover:bg-muted"
+                }`}
+              >
+                <RadioGroupItem value="localFile" id="localFile" className="sr-only" />
+                <FileUp className="size-6" />
+                <div>
+                  <p className="font-medium text-sm">Yerel Dosya</p>
+                  <p className="text-xs text-muted-foreground">Bilgisayardan yükle</p>
                 </div>
               </Label>
             </RadioGroup>
@@ -225,6 +377,67 @@ export function RagImportModal({ open, onOpenChange, onSuccess }: RagImportModal
                 <p className="text-xs text-muted-foreground">
                   Google Drive dosya veya klasör ID'si
                 </p>
+              </div>
+            )}
+
+            {sourceType === "localFile" && (
+              <div className="space-y-3">
+                {/* Drag & Drop Area */}
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                    isDragging
+                      ? "border-primary bg-primary/10"
+                      : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50"
+                  }`}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept=".pdf,.docx,.doc,.txt,.html,.csv,.json,.jsonl,.md"
+                    onChange={(e) => handleFileSelect(e.target.files)}
+                    className="hidden"
+                  />
+                  <FileUp className="size-10 mx-auto mb-3 text-muted-foreground" />
+                  <p className="font-medium">Dosyaları buraya sürükleyin</p>
+                  <p className="text-sm text-muted-foreground">veya tıklayarak seçin</p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    PDF, DOCX, TXT, HTML, CSV, JSON, JSONL, MD • Max 20MB/dosya
+                  </p>
+                </div>
+
+                {/* Selected Files List */}
+                {selectedFiles.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-sm">Seçilen Dosyalar ({selectedFiles.length})</Label>
+                    <div className="border rounded-lg divide-y max-h-40 overflow-y-auto">
+                      {selectedFiles.map((file, index) => (
+                        <div key={index} className="flex items-center gap-3 px-3 py-2">
+                          <FileText className="size-4 text-muted-foreground shrink-0" />
+                          <span className="flex-1 text-sm truncate">{file.name}</span>
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            {formatFileSize(file.size)}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-6 shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              removeFile(index)
+                            }}
+                          >
+                            <X className="size-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
