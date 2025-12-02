@@ -1,5 +1,3 @@
-"use client"
-
 import { Button } from "@/components/ui/button"
 import { Trash2, FileText, Clock, HardDrive } from "lucide-react"
 import {
