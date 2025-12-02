@@ -23,7 +23,7 @@ FROM nginx:alpine AS runner
 # Copy built static files to nginx
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy custom nginx config for SPA routing
+# Copy custom nginx config for SPA routing with API proxy
 RUN echo 'server { \
     listen 8080; \
     listen [::]:8080; \
@@ -36,6 +36,41 @@ RUN echo 'server { \
         access_log off; \
         return 200 "healthy\\n"; \
         add_header Content-Type text/plain; \
+    } \
+    \
+    # API Proxy - Forward to Supabase Edge Function \
+    location /api/vertex { \
+        # Handle CORS preflight \
+        if ($request_method = OPTIONS) { \
+            add_header Access-Control-Allow-Origin * always; \
+            add_header Access-Control-Allow-Methods "GET, POST, OPTIONS" always; \
+            add_header Access-Control-Allow-Headers "authorization, x-client-info, apikey, content-type" always; \
+            add_header Access-Control-Max-Age 1728000; \
+            add_header Content-Type "text/plain charset=UTF-8"; \
+            add_header Content-Length 0; \
+            return 204; \
+        } \
+        \
+        # Proxy to Supabase Edge Function \
+        proxy_pass https://zyxiznikuvpwmopraauj.supabase.co/functions/v1/vertex-chat; \
+        proxy_http_version 1.1; \
+        proxy_set_header Host zyxiznikuvpwmopraauj.supabase.co; \
+        proxy_set_header X-Real-IP $remote_addr; \
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+        proxy_set_header X-Forwarded-Proto $scheme; \
+        \
+        # Pass through headers \
+        proxy_set_header Authorization $http_authorization; \
+        proxy_set_header apikey $http_apikey; \
+        proxy_set_header Content-Type $http_content_type; \
+        \
+        # Streaming support \
+        proxy_buffering off; \
+        proxy_cache off; \
+        proxy_read_timeout 300s; \
+        \
+        # CORS headers for response \
+        add_header Access-Control-Allow-Origin * always; \
     } \
     \
     # SPA routing - all routes go to index.html \
