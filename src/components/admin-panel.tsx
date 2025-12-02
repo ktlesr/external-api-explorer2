@@ -1,8 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClient } from "@supabase/supabase-js"
-import { createClient as createBrowserClient } from "@/lib/supabase-browser"
+import { supabase } from "@/integrations/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -69,38 +68,22 @@ export default function AdminPanel() {
 
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [connectionStatus, setConnectionStatus] = useState<"idle" | "success" | "error">("idle")
 
   useEffect(() => {
-    const init = async () => {
-      const savedApiKeys = localStorage.getItem("api-keys")
-      if (savedApiKeys) {
-        const keys = JSON.parse(savedApiKeys)
-        setApiKeys((prev) => ({ ...prev, ...keys }))
-        if (keys.supabaseUrl && keys.supabaseAnonKey) {
-          await fetchLatestConfig(keys.supabaseUrl, keys.supabaseAnonKey)
-        } else {
-          setIsLoading(false)
-        }
-      } else {
-        setIsLoading(false)
-      }
-    }
-    init()
+    fetchLatestConfig()
   }, [])
 
-  const fetchLatestConfig = async (url: string, key: string) => {
+  const fetchLatestConfig = async () => {
     setIsLoading(true)
     try {
-      const supabase = createClient(url, key)
       const { data, error } = await supabase
         .from("vertex_configs")
         .select("*")
         .order("updated_at", { ascending: false })
         .limit(1)
-        .single()
+        .maybeSingle()
 
-      if (error && error.code !== "PGRST116") throw error
+      if (error) throw error
 
       if (data) {
         setConfig({
@@ -115,36 +98,27 @@ export default function AdminPanel() {
           vertexClientEmail: data.vertex_client_email || "",
           vertexPrivateKey: data.vertex_private_key || "",
         })
-        if (data.internal_api_key) setApiKeys((prev) => ({ ...prev, internalApiKey: data.internal_api_key }))
+        if (data.internal_api_key) {
+          setApiKeys((prev) => ({ ...prev, internalApiKey: data.internal_api_key || "" }))
+        }
         toast.success("Ayarlar yüklendi")
+      } else {
+        toast.info("Henüz kayıtlı ayar bulunamadı")
       }
-      setConnectionStatus("success")
     } catch (error) {
-      console.error(error)
-      setConnectionStatus("error")
-      toast.error("Veri çekilemedi")
+      toast.error("Veri çekilemedi: " + (error as Error).message)
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleSaveConnection = async () => {
-    if (!apiKeys.supabaseUrl || !apiKeys.supabaseAnonKey) {
-      toast.error("Alanları doldurun")
-      return
-    }
-    localStorage.setItem("api-keys", JSON.stringify(apiKeys))
-    await fetchLatestConfig(apiKeys.supabaseUrl, apiKeys.supabaseAnonKey)
+    await fetchLatestConfig()
   }
 
   const handleSaveConfig = async () => {
-    if (connectionStatus !== "success") {
-      toast.error("Supabase bağlantısı yok.")
-      return
-    }
     setIsSaving(true)
     try {
-      const supabase = createClient(apiKeys.supabaseUrl, apiKeys.supabaseAnonKey)
       const dbPayload = {
         model_name: config.modelName,
         system_instruction: config.systemInstruction,
@@ -162,6 +136,7 @@ export default function AdminPanel() {
       const { error } = await supabase.from("vertex_configs").insert([dbPayload])
       if (error) throw error
       toast.success("Tüm ayarlar kaydedildi!")
+      await fetchLatestConfig()
     } catch (error: any) {
       toast.error(`Hata: ${error.message}`)
     } finally {
@@ -175,7 +150,6 @@ export default function AdminPanel() {
 
   const handleLogout = async () => {
     try {
-      const supabase = createBrowserClient()
       await supabase.auth.signOut()
       toast.success("Çıkış yapıldı")
       navigate("/login")
