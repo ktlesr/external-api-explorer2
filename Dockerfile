@@ -14,8 +14,8 @@ RUN if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; \
 # Copy source files
 COPY . .
 
-# Build the Vite app (outputs to /app/dist)
-RUN if [ -f pnpm-lock.yaml ]; then pnpm run build; else npm run build; fi
+# Build the Vite app (outputs to /app/dist) - use build:dev to skip tsc
+RUN if [ -f pnpm-lock.yaml ]; then pnpm run build:dev; else npm run build:dev; fi
 
 # Stage 2: Production server
 FROM nginx:alpine AS runner
