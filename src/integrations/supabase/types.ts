@@ -2194,6 +2194,7 @@ export type Database = {
           model_name: string
           rag_corpus: string | null
           similarity_top_k: number | null
+          staging_bucket: string | null
           system_instruction: string | null
           temperature: number | null
           top_p: number | null
@@ -2211,6 +2212,7 @@ export type Database = {
           model_name: string
           rag_corpus?: string | null
           similarity_top_k?: number | null
+          staging_bucket?: string | null
           system_instruction?: string | null
           temperature?: number | null
           top_p?: number | null
@@ -2228,6 +2230,7 @@ export type Database = {
           model_name?: string
           rag_corpus?: string | null
           similarity_top_k?: number | null
+          staging_bucket?: string | null
           system_instruction?: string | null
           temperature?: number | null
           top_p?: number | null
