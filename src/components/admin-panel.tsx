@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import { createClient } from "@supabase/supabase-js"
 import { createClient as createBrowserClient } from "@/lib/supabase-browser"
 import { Button } from "@/components/ui/button"
@@ -60,7 +59,6 @@ interface ApiKeys {
 }
 
 export default function AdminPanel() {
-  const router = useRouter()
   const navigate = useNavigate()
   const [config, setConfig] = useState<Config>(DEFAULT_CONFIG)
   const [apiKeys, setApiKeys] = useState<ApiKeys>({
