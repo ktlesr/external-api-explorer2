@@ -221,7 +221,7 @@ serve(async (req) => {
         if (parserType === "llm") {
           importConfig.ragFileParsingConfig = {
             llmParser: {
-              model: `projects/${projectId}/locations/${location}/publishers/google/models/${parserConfig?.model || "gemini-1.5-flash"}`,
+              modelName: `projects/${projectId}/locations/${location}/publishers/google/models/${parserConfig?.model || "gemini-1.5-flash"}`,
               ...(parserConfig?.maxParsingRequestsPerMin && { maxParsingRequestsPerMin: parserConfig.maxParsingRequestsPerMin }),
               ...(parserConfig?.customParsingPrompt && { customParsingPrompt: parserConfig.customParsingPrompt }),
             },
@@ -289,7 +289,7 @@ serve(async (req) => {
         if (parserType === "llm") {
           importConfig.ragFileParsingConfig = {
             llmParser: {
-              model: `projects/${projectId}/locations/${location}/publishers/google/models/${parserConfig.model || "gemini-1.5-flash"}`,
+              modelName: `projects/${projectId}/locations/${location}/publishers/google/models/${parserConfig.model || "gemini-1.5-flash"}`,
               ...(parserConfig.maxParsingRequestsPerMin && { maxParsingRequestsPerMin: parserConfig.maxParsingRequestsPerMin }),
               ...(parserConfig.customParsingPrompt && { customParsingPrompt: parserConfig.customParsingPrompt }),
             },
