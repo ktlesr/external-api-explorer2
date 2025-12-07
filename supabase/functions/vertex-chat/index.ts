@@ -48,12 +48,19 @@ serve(async (req) => {
     const projectId = config.vertex_project_id;
     const location = "europe-west1";
     const modelName = config.model_name || "gemini-2.5-flash";
-    
+
     const clientEmail = config.vertex_client_email;
     const privateKey = (config.vertex_private_key || "").replace(/\\n/g, "\n");
 
     if (!projectId || !clientEmail || !privateKey) {
-      console.error("Missing credentials - projectId:", !!projectId, "clientEmail:", !!clientEmail, "privateKey:", !!privateKey);
+      console.error(
+        "Missing credentials - projectId:",
+        !!projectId,
+        "clientEmail:",
+        !!clientEmail,
+        "privateKey:",
+        !!privateKey,
+      );
       throw new Error("Vertex AI credentials eksik");
     }
 
@@ -77,15 +84,15 @@ serve(async (req) => {
       .replace("-----BEGIN PRIVATE KEY-----", "")
       .replace("-----END PRIVATE KEY-----", "")
       .replace(/[\r\n\s]/g, "");
-    
+
     let binaryKey: Uint8Array;
     try {
-      binaryKey = Uint8Array.from(atob(keyData), c => c.charCodeAt(0));
+      binaryKey = Uint8Array.from(atob(keyData), (c) => c.charCodeAt(0));
     } catch (e) {
       console.error("Private key decode error:", e);
       throw new Error("Private key formatı hatalı");
     }
-    
+
     let cryptoKey;
     try {
       cryptoKey = await crypto.subtle.importKey(
@@ -93,7 +100,7 @@ serve(async (req) => {
         binaryKey.buffer as ArrayBuffer,
         { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
         false,
-        ["sign"]
+        ["sign"],
       );
     } catch (e) {
       console.error("Crypto key import error:", e);
@@ -103,7 +110,7 @@ serve(async (req) => {
     const signatureBuffer = await crypto.subtle.sign(
       "RSASSA-PKCS1-v1_5",
       cryptoKey,
-      encoder.encode(`${jwtHeader}.${jwtClaim}`)
+      encoder.encode(`${jwtHeader}.${jwtClaim}`),
     );
 
     const jwtSignature = base64url(new Uint8Array(signatureBuffer));
@@ -123,7 +130,9 @@ serve(async (req) => {
 
     if (!tokenData.access_token) {
       console.error("Token error:", JSON.stringify(tokenData));
-      throw new Error("Google access token alınamadı: " + (tokenData.error_description || tokenData.error || "Unknown"));
+      throw new Error(
+        "Google access token alınamadı: " + (tokenData.error_description || tokenData.error || "Unknown"),
+      );
     }
 
     const access_token = tokenData.access_token;
@@ -147,15 +156,17 @@ serve(async (req) => {
 
     // Add RAG tools if corpus is configured
     if (config.rag_corpus) {
-      vertexPayload.tools = [{
-        retrieval: {
-          vertexRagStore: {
-            ragResources: [{ ragCorpus: config.rag_corpus }],
-            similarityTopK: config.similarity_top_k || 50,
-            vectorDistanceThreshold: 0.3,
+      vertexPayload.tools = [
+        {
+          retrieval: {
+            vertexRagStore: {
+              ragResources: [{ ragCorpus: config.rag_corpus }],
+              similarityTopK: config.similarity_top_k || 50,
+              vectorDistanceThreshold: config.vector_distance_threshold || 0.4,
+            },
           },
         },
-      }];
+      ];
     }
 
     // 8. Call Vertex AI Streaming API
@@ -192,7 +203,7 @@ serve(async (req) => {
             if (done) break;
 
             buffer += decoder.decode(value, { stream: true });
-            
+
             // Vertex AI returns JSON array, parse incrementally
             try {
               // Try to parse as JSON array
@@ -236,12 +247,13 @@ serve(async (req) => {
 
           // Send metadata at the end
           if (collectedMetadata) {
-            const sources = collectedMetadata.groundingChunks?.map((chunk: any, index: number) => ({
-              index: index + 1,
-              title: chunk.retrievedContext?.title || "Bilinmeyen Belge",
-              uri: chunk.retrievedContext?.uri || "",
-              text: chunk.retrievedContext?.text || "",
-            })) || [];
+            const sources =
+              collectedMetadata.groundingChunks?.map((chunk: any, index: number) => ({
+                index: index + 1,
+                title: chunk.retrievedContext?.title || "Bilinmeyen Belge",
+                uri: chunk.retrievedContext?.uri || "",
+                text: chunk.retrievedContext?.text || "",
+              })) || [];
 
             if (sources.length > 0) {
               const metadataString = `\n\n__METADATA__${JSON.stringify(sources)}`;
@@ -263,15 +275,11 @@ serve(async (req) => {
         "Content-Type": "text/plain; charset=utf-8",
       },
     });
-
   } catch (error) {
     console.error("Error:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
