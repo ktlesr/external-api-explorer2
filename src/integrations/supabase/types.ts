@@ -2199,6 +2199,7 @@ export type Database = {
           temperature: number | null
           top_p: number | null
           updated_at: string | null
+          vector_distance_threshold: number | null
           vertex_client_email: string | null
           vertex_private_key: string | null
           vertex_project_id: string | null
@@ -2217,6 +2218,7 @@ export type Database = {
           temperature?: number | null
           top_p?: number | null
           updated_at?: string | null
+          vector_distance_threshold?: number | null
           vertex_client_email?: string | null
           vertex_private_key?: string | null
           vertex_project_id?: string | null
@@ -2235,6 +2237,7 @@ export type Database = {
           temperature?: number | null
           top_p?: number | null
           updated_at?: string | null
+          vector_distance_threshold?: number | null
           vertex_client_email?: string | null
           vertex_private_key?: string | null
           vertex_project_id?: string | null
