@@ -28,7 +28,8 @@ const DEFAULT_CONFIG = {
   modelName: "gemini-2.5-flash",
   systemInstruction: "",
   ragCorpus: "",
-  similarityTopK: 50,
+  similarityTopK: 20,
+  vectorDistanceThreshold: 0.5,
   temperature: 0.1,
   topP: 0.95,
   maxOutputTokens: 65535,
@@ -43,6 +44,7 @@ interface Config {
   systemInstruction: string
   ragCorpus: string
   similarityTopK: number
+  vectorDistanceThreshold: number
   temperature: number
   topP: number
   maxOutputTokens: number
@@ -81,7 +83,8 @@ export default function AdminPanel() {
           modelName: data.model_name || DEFAULT_CONFIG.modelName,
           systemInstruction: data.system_instruction || "",
           ragCorpus: data.rag_corpus || "",
-          similarityTopK: data.similarity_top_k || 50,
+          similarityTopK: data.similarity_top_k || 20,
+          vectorDistanceThreshold: data.vector_distance_threshold ?? 0.5,
           temperature: data.temperature ?? 0.1,
           topP: data.top_p ?? 0.95,
           maxOutputTokens: data.max_output_tokens || 65535,
@@ -113,6 +116,7 @@ export default function AdminPanel() {
         system_instruction: config.systemInstruction,
         rag_corpus: config.ragCorpus,
         similarity_top_k: config.similarityTopK,
+        vector_distance_threshold: config.vectorDistanceThreshold,
         temperature: config.temperature,
         top_p: config.topP,
         max_output_tokens: config.maxOutputTokens,
@@ -369,6 +373,25 @@ export default function AdminPanel() {
                     max={50}
                     step={1}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Sorgudan kaç adet benzer chunk getirileceği (önerilen: 10-30)
+                  </p>
+                </div>
+                <div className="space-y-4">
+                  <div className="flex justify-between">
+                    <Label>Vector Distance Threshold (Benzerlik Eşiği)</Label>
+                    <span className="font-mono">{config.vectorDistanceThreshold.toFixed(2)}</span>
+                  </div>
+                  <Slider
+                    value={[config.vectorDistanceThreshold]}
+                    onValueChange={([v]) => setConfig({ ...config, vectorDistanceThreshold: v })}
+                    min={0.1}
+                    max={1}
+                    step={0.05}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Minimum benzerlik skoru. Düşük değer = daha az ama kaliteli sonuç (önerilen: 0.4-0.6)
+                  </p>
                 </div>
               </CardContent>
             </Card>
